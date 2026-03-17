@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Сменный чек-лист</title>
+  <link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header с переключателем режимов -->
+    <header class="app-header">
+      <h1>Сменный чек-лист</h1>
+      
+      <nav class="mode-switcher">
+        <button class="mode-btn active" data-mode="input">
+          <span class="icon">✏️</span>
+          <span>Ввод данных</span>
+        </button>
+        <button class="mode-btn" data-mode="view">
+          <span class="icon">📊</span>
+          <span>Просмотр и редактирование</span>
+        </button>
+      </nav>
+    </header>
+
+    <!-- Секция: Ввод данных -->
+    <section id="input-section" class="content-section active">
+      <form id="reportForm">
+        <!-- Шапка -->
+        <div class="card">
+          <h2 class="card-title">📋 Основная информация</h2>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="date">Дата</label>
+              <input type="date" id="date" name="date" required>
+            </div>
+            <div class="form-group">
+              <label for="shift">Смена</label>
+              <select id="shift" name="shift" required>
+                <option value="">Выберите</option>
+                <option value="1">1 смена</option>
+                <option value="2">2 смена</option>
+                <option value="3">3 смена</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="shop">Цех</label>
+              <input type="text" id="shop" name="shop" value="Цех №2" required>
+            </div>
+            <div class="form-group">
+              <label for="master">ФИО мастера</label>
+              <input type="text" id="master" name="master" placeholder="Введите ФИО" required>
+            </div>
+          </div>
+        </div>
+
+        <!-- Количество людей -->
+        <div class="card">
+          <h2 class="card-title">👥 Количество человек по участкам</h2>
+          <div class="table-responsive">
+            <table class="people-table">
+              <thead>
+                <tr>
+                  <th>Участок</th>
+                  <th>Кол-во чел.</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Плазма</td>
+                  <td><input type="number" id="plasma_people" class="people-input" min="0" value="0"></td>
+                </tr>
+                <tr>
+                  <td>Строжка</td>
+                  <td><input type="number" id="strozka_people" class="people-input" min="0" value="0"></td>
+                </tr>
+                <tr>
+                  <td>Зачистка под сварку</td>
+                  <td><input type="number" id="zachistka_people" class="people-input" min="0" value="0"></td>
+                </tr>
+                <tr>
+                  <td>Авт. сварка</td>
+                  <td><input type="number" id="avtosvarka_people" class="people-input" min="0" value="0"></td>
+                </tr>
+                <tr>
+                  <td>Полотер</td>
+                  <td><input type="number" id="poloter_people" class="people-input" min="0" value="0"></td>
+                </tr>
+                <tr>
+                  <td>Штамп 500т старый</td>
+                  <td><input type="number" id="press_old_people" class="people-input" min="0" value="0"></td>
+                </tr>
+                <tr>
+                  <td>Итальянец</td>
+                  <td><input type="number" id="italy_people" class="people-input" min="0" value="0"></td>
+                </tr>
+                <tr>
+                  <td>Штамп 500т новый</td>
+                  <td><input type="number" id="press_new_people" class="people-input" min="0" value="0"></td>
+                </tr>
+                <tr>
+                  <td>Отбортовка</td>
+                  <td><input type="number" id="otbortovka_people" class="people-input" min="0" value="0"></td>
+                </tr>
+                <tr>
+                  <td>Кромкообрезной станок</td>
+                  <td><input type="number" id="kromko_people" class="people-input" min="0" value="0"></td>
+                </tr>
+                <tr>
+                  <td>Котельщик приемка</td>
+                  <td><input type="number" id="kotelshchik_people" class="people-input" min="0" value="0"></td>
+                </tr>
+                <tr>
+                  <td>Ручная сварка</td>
+                  <td><input type="number" id="ruchsvarka_people" class="people-input" min="0" value="0"></td>
+                </tr>
+              </tbody>
+              <tfoot>
+                <tr>
+                  <th>Общее количество:</th>
+                  <th><input type="number" id="total_people" readonly value="0"></th>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+
+        <!-- Производственные показатели -->
+        <div class="card">
+          <h2 class="card-title">🏭 Производственные показатели</h2>
+          <div class="production-grid">
+            <div class="form-group">
+              <label for="plasma_sheets">Плазма: порезано листов</label>
+              <input type="number" id="plasma_sheets" min="0" value="0">
+            </div>
+            <div class="form-group">
+              <label for="strozka_segments">Строжка: отстрогано сегментов</label>
+              <input type="number" id="strozka_segments" min="0" value="0">
+            </div>
+            <div class="form-group">
+              <label for="avtosvarka_cards">Авт. сварка: заварено карт</label>
+              <input type="number" id="avtosvarka_cards" min="0" value="0">
+            </div>
+            <div class="form-group">
+              <label for="poloter_cleaned">Полотер: почищено карт</label>
+              <input type="number" id="poloter_cleaned" min="0" value="0">
+            </div>
+            <div class="form-group">
+              <label for="zachistka_cleaned">Зачистка под сварку: почищено карт</label>
+              <input type="number" id="zachistka_cleaned" min="0" value="0">
+            </div>
+          </div>
+        </div>
+
+        <!-- Днища -->
+        <div class="card">
+          <h2 class="card-title">🔧 Днища</h2>
+          <div class="ends-grid">
+            <div class="form-group">
+              <label for="stamped_old">Отштамповано (пресс старый)</label>
+              <input type="number" id="stamped_old" min="0" value="0">
+            </div>
+            <div class="form-group">
+              <label for="stamped_italy">Отштамповано (Итальянец)</label>
+              <input type="number" id="stamped_italy" min="0" value="0">
+            </div>
+            <div class="form-group">
+              <label for="stamped_new">Отштамповано (пресс новый)</label>
+              <input type="number" id="stamped_new" min="0" value="0">
+            </div>
+            <div class="form-group">
+              <label for="combined">Комбированных днищ</label>
+              <input type="number" id="combined" min="0" value="0">
+            </div>
+            <div class="form-group">
+              <label for="repair">Ремонтных днищ</label>
+              <input type="number" id="repair" min="0" value="0">
+            </div>
+            <div class="form-group">
+              <label for="flanged">Отбортованных днищ</label>
+              <input type="number" id="flanged" min="0" value="0">
+            </div>
+            <div class="form-group">
+              <label for="trimmed">Обрезанных днищ</label>
+              <input type="number" id="trimmed" min="0" value="0">
+            </div>
+            <div class="form-group">
+              <label for="packed">Упакованных днищ</label>
+              <input type="number" id="packed" min="0" value="0">
+            </div>
+            <div class="form-group">
+              <label for="film_packs">Пачек в плёнку</label>
+              <input type="number" id="film_packs" min="0" value="0">
+            </div>
+          </div>
+        </div>
+
+        <!-- Логистика -->
+        <div class="card">
+          <h2 class="card-title">🚛 Логистика и термообработка</h2>
+          <div class="logistics-grid">
+            <div class="form-group">
+              <label for="unloaded">Разгруженных машин</label>
+              <input type="number" id="unloaded" min="0" value="0">
+            </div>
+            <div class="form-group">
+              <label for="loaded">Отгруженных машин</label>
+              <input type="number" id="loaded" min="0" value="0">
+            </div>
+            <div class="form-group">
+              <label for="small_furnace">Садок малая печь</label>
+              <input type="number" id="small_furnace" min="0" value="0">
+            </div>
+            <div class="form-group">
+              <label for="large_furnace">Садок большая печь</label>
+              <input type="number" id="large_furnace" min="0" value="0">
+            </div>
+          </div>
+        </div>
+
+        <!-- Поломки -->
+        <div class="card">
+          <h2 class="card-title">⚠️ Поломки и простои</h2>
+          <div class="form-group">
+            <label for="breakdowns">Описание поломок и простоев</label>
+            <textarea id="breakdowns" rows="3" placeholder="Например: Строжка, не едет стол, простой 6 ч."></textarea>
+          </div>
+        </div>
+
+        <!-- Кнопка отправки -->
+        <div class="form-actions">
+          <button type="submit" id="submitBtn" class="btn btn-primary">
+            <span>📤</span> Отправить отчёт
+          </button>
+          <div id="status"></div>
+        </div>
+      </form>
+    </section>
+
+    <!-- Секция: Просмотр и редактирование -->
+    <section id="view-section" class="content-section">
+      <!-- Фильтры -->
+      <div class="card">
+        <h2 class="card-title">🔍 Фильтры</h2>
+        <div class="filters">
+          <div class="filter-group">
+            <label for="dateFrom">Дата с</label>
+            <input type="date" id="dateFrom">
+          </div>
+          <div class="filter-group">
+            <label for="dateTo">Дата по</label>
+            <input type="date" id="dateTo">
+          </div>
+          <div class="filter-group">
+            <label for="filterShift">Смена</label>
+            <select id="filterShift">
+              <option value="">Все</option>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label for="filterShop">Цех</label>
+            <input type="text" id="filterShop" placeholder="например, Цех №2">
+          </div>
+          <div class="filter-group">
+            <label for="filterMaster">ФИО мастера</label>
+            <input type="text" id="filterMaster" placeholder="часть фамилии">
+          </div>
+          <div class="filter-actions">
+            <button id="applyFilters" class="btn btn-primary">Применить</button>
+            <button id="resetFilters" class="btn btn-secondary">Сбросить</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Кнопки действий -->
+      <div style="margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
+        <button id="addNewBtn" class="btn btn-success">
+          <span>➕</span> Добавить запись
+        </button>
+        <button id="refreshBtn" class="btn btn-primary">
+          <span>🔄</span> Обновить из таблицы
+        </button>
+        <button id="exportBtn" class="btn btn-secondary">
+          <span>📥</span> Экспорт в CSV
+        </button>
+      </div>
+
+      <!-- Таблица -->
+      <div class="card">
+        <h2 class="card-title">📋 Данные отчётов</h2>
+        <div id="viewStatus" style="margin-bottom: 15px;"></div>
+        <div id="tableContainer" class="data-table-container">
+          <div class="empty-state">
+            <div class="empty-state-icon">📭</div>
+            <p>Нажмите "Применить" для загрузки данных</p>
+          </div>
+        </div>
+        <div id="summary" class="summary"></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Модальное окно редактирования будет добавлено динамически -->
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
