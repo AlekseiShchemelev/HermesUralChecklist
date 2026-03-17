@@ -516,11 +516,11 @@ class App {
     
     console.log('Фильтрация отчётов:', { dateFrom, dateTo, shift, totalRecords: data.length });
     
-    return data.filter(row => {
+    const result = data.filter(row => {
       // Получаем дату записи (пробуем разные варианты названий полей)
       const rowDateStr = row.date || row.Дата || row['ДАТА'];
       if (!rowDateStr) {
-        console.log('Запись без даты:', row);
+        console.log('Запись без даты, пропускаем');
         return false;
       }
       
@@ -533,47 +533,85 @@ class App {
       // Фильтр по дате "от"
       if (dateFrom) {
         const from = this.parseDate(dateFrom);
-        // Устанавливаем начало дня (00:00:00)
         from.setHours(0, 0, 0, 0);
-        if (rowDate < from) return false;
+        if (rowDate < from) {
+          console.log(`Дата ${rowDateStr} < ${dateFrom}, пропускаем`);
+          return false;
+        }
       }
       
       // Фильтр по дате "до"
       if (dateTo) {
         const to = this.parseDate(dateTo);
-        // Устанавливаем конец дня (23:59:59)
         to.setHours(23, 59, 59, 999);
-        if (rowDate > to) return false;
+        if (rowDate > to) {
+          console.log(`Дата ${rowDateStr} > ${dateTo}, пропускаем`);
+          return false;
+        }
       }
       
       // Фильтр по смене
       if (shift) {
         const rowShift = row.shift || row.Смена || row['СМЕНА'];
-        if (String(rowShift) !== String(shift)) return false;
+        if (String(rowShift) !== String(shift)) {
+          return false;
+        }
       }
       
       return true;
     });
+    
+    console.log('После фильтрации осталось:', result.length, 'записей');
+    if (result.length > 0) {
+      console.log('Первая отфильтрованная запись:', result[0]);
+    }
+    
+    return result;
+  }
+
+  /**
+   * Хелпер для получения значения из данных (поддержка русских и английских ключей)
+   */
+  getValue(row, ...fields) {
+    // Сначала ищем точное совпадение
+    for (const f of fields) {
+      if (row[f] !== undefined && row[f] !== null && row[f] !== '') {
+        const rawVal = row[f];
+        const val = typeof rawVal === 'number' ? rawVal : Number(String(rawVal).replace(',', '.'));
+        return isNaN(val) ? 0 : val;
+      }
+    }
+    
+    // Если не нашли - ищем по совпадению части ключа (case-insensitive)
+    const rowKeys = Object.keys(row);
+    for (const f of fields) {
+      const lowerF = f.toLowerCase();
+      const matchingKey = rowKeys.find(k => k.toLowerCase() === lowerF || 
+        k.toLowerCase().includes(lowerF.replace(/_/g, '')));
+      if (matchingKey !== undefined && row[matchingKey] !== null && row[matchingKey] !== '') {
+        const rawVal = row[matchingKey];
+        const val = typeof rawVal === 'number' ? rawVal : Number(String(rawVal).replace(',', '.'));
+        return isNaN(val) ? 0 : val;
+      }
+    }
+    
+    return 0;
   }
 
   /**
    * Генерирует отчёты и графики
    */
   async generateReports() {
-    const allData = this.storage.data || [];
+    let allData = this.storage.data || [];
     
     console.log('=== ГЕНЕРАЦИЯ ОТЧЁТОВ ===');
-    console.log('Всего данных:', allData.length);
+    console.log('Всего данных в storage:', allData.length);
     
-    if (allData.length > 0) {
-      console.log('Ключи первой записи:', Object.keys(allData[0]));
-      console.log('Пример записи:', allData[0]);
-    }
-    
+    // Если данных нет - загружаем
     if (allData.length === 0) {
-      // Пробуем загрузить данные
       try {
         await this.storage.load();
+        allData = this.storage.data || [];
       } catch (error) {
         console.error('Ошибка загрузки данных:', error);
         alert('Нет данных для формирования отчётов');
@@ -581,7 +619,23 @@ class App {
       }
     }
     
-    const filteredData = this.filterReportData(this.storage.data);
+    if (allData.length === 0) {
+      alert('Нет данных для формирования отчётов');
+      return;
+    }
+    
+    // Проверяем структуру данных
+    console.log('Ключи первой записи:', Object.keys(allData[0]));
+    console.log('Пример записи:', JSON.stringify(allData[0], null, 2));
+    
+    // Проверяем значения полей
+    const testRecord = allData[0];
+    console.log('Тест получения значений:');
+    console.log('  Дата:', testRecord.date || testRecord.Дата || testRecord['ДАТА']);
+    console.log('  Плазма листы:', this.getValue(testRecord, 'plasma_sheets', 'ПЛАЗМА_ЛИСТЫ'));
+    console.log('  Строжка сегменты:', this.getValue(testRecord, 'strozka_segments', 'СТРОЖКА_ОТСТРОГАНО_СЕГМЕНТОВ'));
+    
+    const filteredData = this.filterReportData(allData);
     
     console.log('Отфильтровано записей:', filteredData.length);
     
@@ -597,19 +651,25 @@ class App {
       return dateA - dateB;
     });
     
-    console.log('Сортированные данные:', sortedData.map(d => ({
-      date: d.date || d.Дата || d['ДАТА'],
-      plasma: d['ПЛАЗМА_ЛИСТЫ'] || d.plasma_sheets
-    })));
+    // Уникальные даты для оси X (без форматирования - используем оригинальные строки)
+    const uniqueDates = [...new Set(sortedData.map(d => {
+      return d.date || d.Дата || d['ДАТА'];
+    }))].map(d => this.formatChartDate(d));
+    
+    console.log('Уникальные даты:', uniqueDates);
+    console.log('Все даты в данных:', sortedData.map(d => d.date || d.Дата || d['ДАТА']));
     
     // График 1: Производственные показатели
-    this.createProductionChart(sortedData);
+    this.createProductionChart(sortedData, uniqueDates);
     
-    // График 2: Днища
+    // График 2: Логистика (отдельно)
+    this.createLogisticsChart(sortedData, uniqueDates);
+    
+    // График 3: Термообработка (отдельно)
+    this.createFurnaceChart(sortedData, uniqueDates);
+    
+    // График 4: Днища (круговая диаграмма с %)
     this.createEndsChart(sortedData);
-    
-    // График 3: Логистика
-    this.createLogisticsChart(sortedData);
     
     // Отчёт по поломкам
     this.createBreakdownsReport(sortedData);
@@ -635,9 +695,9 @@ class App {
   }
 
   /**
-   * График производственных показателей
+   * График производственных показателей (столбчатая диаграмма)
    */
-  createProductionChart(data) {
+  createProductionChart(data, uniqueDates) {
     const ctx = document.getElementById('productionChart');
     if (!ctx) return;
     
@@ -646,62 +706,248 @@ class App {
       this.charts.production.destroy();
     }
     
-    // Подготавливаем данные - ищем поля по разным возможным названиям
-    const labels = data.map(d => this.formatChartDate(d.date || d.Дата || d['ДАТА']));
+    // Агрегируем данные по датам (используем оригинальные даты как ключи)
+    const aggregated = {};
+    const dateMap = {}; // маппинг оригинальной даты -> форматированной
     
-    // Производственные показатели (листы, сегменты, карты)
-    const getValue = (row, ...fields) => {
-      for (const f of fields) {
-        if (row[f] !== undefined && row[f] !== null && row[f] !== '') {
-          return Number(row[f]) || 0;
-        }
+    data.forEach(d => {
+      const originalDate = d.date || d.Дата || d['ДАТА'];
+      const formattedDate = this.formatChartDate(originalDate);
+      dateMap[originalDate] = formattedDate;
+      
+      if (!aggregated[formattedDate]) {
+        aggregated[formattedDate] = { plasma: 0, strozka: 0, svarka: 0, poloter: 0, zachistka: 0 };
       }
-      return 0;
-    };
+      
+      aggregated[formattedDate].plasma += this.getValue(d, 'plasma_sheets', 'ПЛАЗМА_ЛИСТЫ');
+      aggregated[formattedDate].strozka += this.getValue(d, 'strozka_segments', 'СТРОЖКА_ОТСТРОГАНО_СЕГМЕНТОВ');
+      aggregated[formattedDate].svarka += this.getValue(d, 'avtosvarka_cards', 'АВТ_СВАРКА_ЗАВАРЕНО_КАРТ');
+      aggregated[formattedDate].poloter += this.getValue(d, 'poloter_cleaned', 'ПОЛОТЕР_ПОЧИЩЕНО_КАРТ');
+      aggregated[formattedDate].zachistka += this.getValue(d, 'zachistka_cleaned', 'ЗАЧИСТКА_ПОД_СВАРКУ_ПОЧИЩЕНО_КАРТ');
+    });
     
-    const plasmaData = data.map(d => getValue(d, 'plasma_sheets', 'ПЛАЗМА_ЛИСТЫ', 'plasma_sheets'));
-    const strozkaData = data.map(d => getValue(d, 'strozka_segments', 'СТРОЖКА_ОТСТРОГАНО_СЕГМЕНТОВ', 'strozka_segments'));
-    const svarkaData = data.map(d => getValue(d, 'avtosvarka_cards', 'АВТ_СВАРКА_ЗАВАРЕНО_КАРТ', 'avtosvarka_cards'));
-    const poloterData = data.map(d => getValue(d, 'poloter_cleaned', 'ПОЛОТЕР_ПОЧИЩЕНО_КАРТ', 'poloter_cleaned'));
-    const zachistkaData = data.map(d => getValue(d, 'zachistka_cleaned', 'ЗАЧИСТКА_ПОД_СВАРКУ_ПОЧИЩЕНО_КАРТ', 'zachistka_cleaned'));
+    // Получаем уникальные даты в порядке сортировки
+    const labels = [...new Set(data.map(d => this.formatChartDate(d.date || d.Дата || d['ДАТА'])))];
+    const plasmaData = labels.map(d => aggregated[d].plasma);
+    const strozkaData = labels.map(d => aggregated[d].strozka);
+    const svarkaData = labels.map(d => aggregated[d].svarka);
+    const poloterData = labels.map(d => aggregated[d].poloter);
+    const zachistkaData = labels.map(d => aggregated[d].zachistka);
     
     console.log('График производства:', { labels, plasmaData, strozkaData, svarkaData, poloterData, zachistkaData });
     
-    // Проверяем есть ли данные
-    const hasData = [...plasmaData, ...strozkaData, ...svarkaData, ...poloterData, ...zachistkaData].some(v => v > 0);
+    const maxValue = Math.max(...plasmaData, ...strozkaData, ...svarkaData, ...poloterData, ...zachistkaData, 1);
     
-    if (!hasData) {
-      console.log('Нет данных для графика производства');
-      // Показываем пустой график с сообщением
-    }
+    console.log('Агрегированные данные производства:', {
+      labels,
+      plasma: plasmaData,
+      strozka: strozkaData,
+      maxValue
+    });
     
     this.charts.production = new Chart(ctx, {
       type: 'bar',
       data: {
         labels: labels,
         datasets: [
-          { label: 'Плазма (листы)', data: plasmaData, backgroundColor: '#FF6384' },
-          { label: 'Строжка (сегменты)', data: strozkaData, backgroundColor: '#36A2EB' },
-          { label: 'Авт. сварка (карты)', data: svarkaData, backgroundColor: '#FFCE56' },
-          { label: 'Полотер (карты)', data: poloterData, backgroundColor: '#4BC0C0' },
-          { label: 'Зачистка (карты)', data: zachistkaData, backgroundColor: '#9966FF' }
+          { label: 'Плазма (листы)', data: plasmaData, backgroundColor: '#FF6384', borderRadius: 4 },
+          { label: 'Строжка (сегменты)', data: strozkaData, backgroundColor: '#36A2EB', borderRadius: 4 },
+          { label: 'Авт. сварка (карты)', data: svarkaData, backgroundColor: '#FFCE56', borderRadius: 4 },
+          { label: 'Полотер (карты)', data: poloterData, backgroundColor: '#4BC0C0', borderRadius: 4 },
+          { label: 'Зачистка (карты)', data: zachistkaData, backgroundColor: '#9966FF', borderRadius: 4 }
         ]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          title: { display: true, text: 'Производственные показатели по дням' }
+          title: { display: true, text: 'Производственные показатели по дням', font: { size: 16 } },
+          legend: { position: 'top' }
         },
         scales: {
-          y: { beginAtZero: true }
+          x: { 
+            title: { display: true, text: 'Дата' },
+            grid: { display: false }
+          },
+          y: { 
+            beginAtZero: true,
+            title: { display: true, text: 'Количество' },
+            suggestedMax: maxValue * 1.1
+          }
         }
       }
     });
   }
 
   /**
-   * График учёта днищ
+   * График логистики (отгружено/разгружено машин)
+   */
+  createLogisticsChart(data, uniqueDates) {
+    const ctx = document.getElementById('logisticsChart');
+    if (!ctx) return;
+    
+    if (this.charts.logistics) {
+      this.charts.logistics.destroy();
+    }
+    
+    // Агрегируем данные по датам
+    const aggregated = {};
+    
+    data.forEach(d => {
+      const dateStr = this.formatChartDate(d.date || d.Дата || d['ДАТА']);
+      if (!aggregated[dateStr]) {
+        aggregated[dateStr] = { unloaded: 0, loaded: 0 };
+      }
+      aggregated[dateStr].unloaded += this.getValue(d, 'unloaded', 'РАЗГРУЖЕННЫХ_МАШИН');
+      aggregated[dateStr].loaded += this.getValue(d, 'loaded', 'ОТГРУЖЕННЫХ_МАШИН');
+    });
+    
+    const labels = [...new Set(data.map(d => this.formatChartDate(d.date || d.Дата || d['ДАТА'])))];
+    const unloadedData = labels.map(d => aggregated[d].unloaded);
+    const loadedData = labels.map(d => aggregated[d].loaded);
+    
+    console.log('График логистики:', { labels, unloadedData, loadedData });
+    
+    const maxValue = Math.max(...unloadedData, ...loadedData, 1);
+    
+    this.charts.logistics = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [
+          { 
+            label: 'Разгружено машин', 
+            data: unloadedData, 
+            borderColor: '#FF6384', 
+            backgroundColor: 'rgba(255, 99, 132, 0.1)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 5,
+            pointHoverRadius: 7
+          },
+          { 
+            label: 'Отгружено машин', 
+            data: loadedData, 
+            borderColor: '#36A2EB',
+            backgroundColor: 'rgba(54, 162, 235, 0.1)', 
+            fill: true,
+            tension: 0.3,
+            pointRadius: 5,
+            pointHoverRadius: 7
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          title: { display: true, text: 'Логистика (машины)', font: { size: 16 } }
+        },
+        scales: {
+          x: { 
+            title: { display: true, text: 'Дата' },
+            grid: { display: false }
+          },
+          y: { 
+            beginAtZero: true,
+            title: { display: true, text: 'Количество машин' },
+            suggestedMax: maxValue * 1.1,
+            ticks: { stepSize: 1 }
+          }
+        }
+      }
+    });
+  }
+
+  /**
+   * График термообработки (малые и большие печи)
+   */
+  createFurnaceChart(data, uniqueDates) {
+    // Создаём canvas если его нет
+    let ctx = document.getElementById('furnaceChart');
+    if (!ctx) {
+      const container = document.getElementById('furnaceChartContainer');
+      if (!container) return;
+      ctx = document.createElement('canvas');
+      ctx.id = 'furnaceChart';
+      container.appendChild(ctx);
+    }
+    
+    if (this.charts.furnace) {
+      this.charts.furnace.destroy();
+    }
+    
+    // Агрегируем данные по датам
+    const aggregated = {};
+    
+    data.forEach(d => {
+      const dateStr = this.formatChartDate(d.date || d.Дата || d['ДАТА']);
+      if (!aggregated[dateStr]) {
+        aggregated[dateStr] = { small: 0, large: 0 };
+      }
+      aggregated[dateStr].small += this.getValue(d, 'small_furnace', 'САДОК_МАЛАЯ_ПЕЧЬ');
+      aggregated[dateStr].large += this.getValue(d, 'large_furnace', 'САДОК_БОЛЬШАЯ_ПЕЧЬ');
+    });
+    
+    const labels = [...new Set(data.map(d => this.formatChartDate(d.date || d.Дата || d['ДАТА'])))];
+    const smallData = labels.map(d => aggregated[d].small);
+    const largeData = labels.map(d => aggregated[d].large);
+    
+    console.log('График термообработки:', { labels, smallData, largeData });
+    
+    const maxValue = Math.max(...smallData, ...largeData, 1);
+    
+    this.charts.furnace = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [
+          { 
+            label: 'Малая печь', 
+            data: smallData, 
+            borderColor: '#FFCE56',
+            backgroundColor: 'rgba(255, 206, 86, 0.1)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 5,
+            pointHoverRadius: 7
+          },
+          { 
+            label: 'Большая печь', 
+            data: largeData, 
+            borderColor: '#4BC0C0',
+            backgroundColor: 'rgba(75, 192, 192, 0.1)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 5,
+            pointHoverRadius: 7
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          title: { display: true, text: 'Термообработка (садки в печи)', font: { size: 16 } }
+        },
+        scales: {
+          x: { 
+            title: { display: true, text: 'Дата' },
+            grid: { display: false }
+          },
+          y: { 
+            beginAtZero: true,
+            title: { display: true, text: 'Количество садок' },
+            suggestedMax: maxValue * 1.1,
+            ticks: { stepSize: 1 }
+          }
+        }
+      }
+    });
+  }
+
+  /**
+   * График учёта днищ (круговая диаграмма с процентами)
    */
   createEndsChart(data) {
     const ctx = document.getElementById('endsChart');
@@ -710,16 +956,6 @@ class App {
     if (this.charts.ends) {
       this.charts.ends.destroy();
     }
-    
-    // Хелпер для получения значения
-    const getValue = (row, ...fields) => {
-      for (const f of fields) {
-        if (row[f] !== undefined && row[f] !== null && row[f] !== '') {
-          return Number(row[f]) || 0;
-        }
-      }
-      return 0;
-    };
     
     // Суммируем данные по типам днищ
     const totals = {
@@ -734,97 +970,101 @@ class App {
     };
     
     data.forEach(d => {
-      totals['Пресс старый'] += getValue(d, 'stamped_old', 'ОТШТАМПОВАНО_ПРЕСС_СТАРЫЙ', 'stamped_old');
-      totals['Итальянец'] += getValue(d, 'stamped_italy', 'ОТШТАМПОВАНО_ИТАЛЬЯНЕЦ', 'stamped_italy');
-      totals['Пресс новый'] += getValue(d, 'stamped_new', 'ОТШТАМПОВАНО_ПРЕСС_НОВЫЙ', 'stamped_new');
-      totals['Комбинированные'] += getValue(d, 'combined', 'КОМБИНИРОВАННЫХ_ДНИЩ', 'combined');
-      totals['Ремонтные'] += getValue(d, 'repair', 'РЕМОНТНЫХ_ДНИЩ', 'repair');
-      totals['Отбортованные'] += getValue(d, 'flanged', 'ОТБОРТОВАННЫХ_ДНИЩ', 'flanged');
-      totals['Обрезанные'] += getValue(d, 'trimmed', 'ОБРЕЗАННЫХ_ДНИЩ', 'trimmed');
-      totals['Упакованные'] += getValue(d, 'packed', 'УПАКОВАННЫХ_ДНИЩ', 'packed');
+      totals['Пресс старый'] += this.getValue(d, 'stamped_old', 'ОТШТАМПОВАНО_ПРЕСС_СТАРЫЙ');
+      totals['Итальянец'] += this.getValue(d, 'stamped_italy', 'ОТШТАМПОВАНО_ИТАЛЬЯНЕЦ');
+      totals['Пресс новый'] += this.getValue(d, 'stamped_new', 'ОТШТАМПОВАНО_ПРЕСС_НОВЫЙ');
+      totals['Комбинированные'] += this.getValue(d, 'combined', 'КОМБИНИРОВАННЫХ_ДНИЩ');
+      totals['Ремонтные'] += this.getValue(d, 'repair', 'РЕМОНТНЫХ_ДНИЩ');
+      totals['Отбортованные'] += this.getValue(d, 'flanged', 'ОТБОРТОВАННЫХ_ДНИЩ');
+      totals['Обрезанные'] += this.getValue(d, 'trimmed', 'ОБРЕЗАННЫХ_ДНИЩ');
+      totals['Упакованные'] += this.getValue(d, 'packed', 'УПАКОВАННЫХ_ДНИЩ');
     });
     
-    console.log('График днищ:', totals);
+    console.log('График днищ - итоги:', totals);
+    console.log('Все данные для днищ:', data.map(d => ({
+      date: d.date || d.Дата,
+      old: this.getValue(d, 'stamped_old', 'ОТШТАМПОВАНО_ПРЕСС_СТАРЫЙ'),
+      italy: this.getValue(d, 'stamped_italy', 'ОТШТАМПОВАНО_ИТАЛЬЯНЕЦ'),
+      new: this.getValue(d, 'stamped_new', 'ОТШТАМПОВАНО_ПРЕСС_НОВЫЙ')
+    })));
     
-    // Фильтруем нулевые значения для лучшей визуализации
-    const filteredLabels = Object.keys(totals).filter(k => totals[k] > 0);
-    const filteredData = filteredLabels.map(k => totals[k]);
-    const filteredColors = [
+    // Фильтруем нулевые значения
+    const entries = Object.entries(totals).filter(([k, v]) => v > 0);
+    
+    if (entries.length === 0) {
+      // Нет данных - показываем пустую диаграмму
+      this.charts.ends = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: ['Нет данных'],
+          datasets: [{
+            data: [1],
+            backgroundColor: ['#e0e0e0']
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            title: { display: true, text: 'Распределение днищ за период', font: { size: 16 } },
+            legend: { position: 'right' }
+          }
+        }
+      });
+      return;
+    }
+    
+    const labels = entries.map(([k, v]) => k);
+    const values = entries.map(([k, v]) => v);
+    const total = values.reduce((a, b) => a + b, 0);
+    
+    const colors = [
       '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0',
       '#9966FF', '#FF9F40', '#C9CBCF', '#7CFC00'
-    ].slice(0, filteredLabels.length);
+    ];
     
     this.charts.ends = new Chart(ctx, {
       type: 'doughnut',
       data: {
-        labels: filteredLabels.length > 0 ? filteredLabels : Object.keys(totals),
+        labels: labels,
         datasets: [{
-          data: filteredData.length > 0 ? filteredData : Object.values(totals),
-          backgroundColor: filteredColors.length > 0 ? filteredColors : [
-            '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0',
-            '#9966FF', '#FF9F40', '#C9CBCF', '#7CFC00'
-          ]
+          data: values,
+          backgroundColor: colors.slice(0, labels.length),
+          borderWidth: 2,
+          borderColor: '#fff'
         }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          title: { display: true, text: 'Распределение днищ за период' },
-          legend: { position: 'right' }
-        }
-      }
-    });
-  }
-
-  /**
-   * График логистики
-   */
-  createLogisticsChart(data) {
-    const ctx = document.getElementById('logisticsChart');
-    if (!ctx) return;
-    
-    if (this.charts.logistics) {
-      this.charts.logistics.destroy();
-    }
-    
-    // Хелпер для получения значения
-    const getValue = (row, ...fields) => {
-      for (const f of fields) {
-        if (row[f] !== undefined && row[f] !== null && row[f] !== '') {
-          return Number(row[f]) || 0;
-        }
-      }
-      return 0;
-    };
-    
-    const labels = data.map(d => this.formatChartDate(d.date || d.Дата || d['ДАТА']));
-    const unloadedData = data.map(d => getValue(d, 'unloaded', 'РАЗГРУЖЕННЫХ_МАШИН', 'unloaded'));
-    const loadedData = data.map(d => getValue(d, 'loaded', 'ОТГРУЖЕННЫХ_МАШИН', 'loaded'));
-    const smallFurnaceData = data.map(d => getValue(d, 'small_furnace', 'САДОК_МАЛАЯ_ПЕЧЬ', 'small_furnace'));
-    const largeFurnaceData = data.map(d => getValue(d, 'large_furnace', 'САДОК_БОЛЬШАЯ_ПЕЧЬ', 'large_furnace'));
-    
-    console.log('График логистики:', { labels, unloadedData, loadedData, smallFurnaceData, largeFurnaceData });
-    
-    this.charts.logistics = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: labels,
-        datasets: [
-          { label: 'Разгружено машин', data: unloadedData, borderColor: '#FF6384', fill: false, tension: 0.1 },
-          { label: 'Отгружено машин', data: loadedData, borderColor: '#36A2EB', fill: false, tension: 0.1 },
-          { label: 'Малая печь', data: smallFurnaceData, borderColor: '#FFCE56', fill: false, tension: 0.1 },
-          { label: 'Большая печь', data: largeFurnaceData, borderColor: '#4BC0C0', fill: false, tension: 0.1 }
-        ]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          title: { display: true, text: 'Логистика и термообработка' }
-        },
-        scales: {
-          y: { beginAtZero: true }
+          title: { display: true, text: 'Распределение днищ за период', font: { size: 16 } },
+          legend: { 
+            position: 'right',
+            labels: {
+              generateLabels: (chart) => {
+                const data = chart.data;
+                const dataset = data.datasets[0];
+                const total = dataset.data.reduce((a, b) => a + b, 0);
+                
+                return data.labels.map((label, i) => ({
+                  text: `${label}: ${dataset.data[i]} (${((dataset.data[i] / total) * 100).toFixed(1)}%)`,
+                  fillStyle: dataset.backgroundColor[i],
+                  hidden: false,
+                  index: i
+                }));
+              }
+            }
+          },
+          tooltip: {
+            callbacks: {
+              label: (context) => {
+                const value = context.raw;
+                const percentage = ((value / total) * 100).toFixed(1);
+                return `${context.label}: ${value} (${percentage}%)`;
+              }
+            }
+          }
         }
       }
     });
