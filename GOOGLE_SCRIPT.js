@@ -1,16 +1,63 @@
 // Google Apps Script для сменного чек-листа
 // Разверните как веб-приложение с доступом "Все"
 
+// Маппинг русских заголовков на английские ключи
+const COLUMN_MAP = {
+  'ID': 'id',
+  'ДАТА': 'date',
+  'СМЕНА': 'shift',
+  'ЦЕХ': 'shop',
+  'ФИО_МАСТЕРА': 'master',
+  'ПЛАЗМА_ЧЕЛ': 'plasma_people',
+  'СТРОЖКА_ЧЕЛ': 'strozka_people',
+  'ЗАЧИСТКА_ПОД_СВАРКУ_ЧЕЛ': 'zachistka_people',
+  'АВТ_СВАРКА_ЧЕЛ': 'avtosvarka_people',
+  'ПОЛОТЕР_ЧЕЛ': 'poloter_people',
+  'ШТАМП_500Т_СТАРЫЙ_ЧЕЛ': 'press_old_people',
+  'ИТАЛЬЯНЕЦ_ЧЕЛ': 'italy_people',
+  'ШТАМП_500Т_НОВЫЙ_ЧЕЛ': 'press_new_people',
+  'ОТБОРТОВКА_ЧЕЛ': 'otbortovka_people',
+  'КРОМКООБРЕЗНОЙ_СТАНОК_ЧЕЛ': 'kromko_people',
+  'КОТЕЛЬЩИК_ПРИЕМКА_ЧЕЛ': 'kotelshchik_people',
+  'РУЧНАЯ_СВАРКА_ЧЕЛ': 'ruchsvarka_people',
+  'ВСЕГО_ЧЕЛ': 'total_people',
+  'ПЛАЗМА_ЛИСТЫ': 'plasma_sheets',
+  'СТРОЖКА_ОТСТРОГАНО_СЕГМЕНТОВ': 'strozka_segments',
+  'АВТ_СВАРКА_ЗАВАРЕНО_КАРТ': 'avtosvarka_cards',
+  'ПОЛОТЕР_ПОЧИЩЕНО_КАРТ': 'poloter_cleaned',
+  'ЗАЧИСТКА_ПОД_СВАРКУ_ПОЧИЩЕНО_КАРТ': 'zachistka_cleaned',
+  'ОТШТАМПОВАНО_ПРЕСС_СТАРЫЙ': 'stamped_old',
+  'ОТШТАМПОВАНО_ИТАЛЬЯНЕЦ': 'stamped_italy',
+  'ОТШТАМПОВАНО_ПРЕСС_НОВЫЙ': 'stamped_new',
+  'КОМБИНИРОВАННЫХ_ДНИЩ': 'combined',
+  'РЕМОНТНЫХ_ДНИЩ': 'repair',
+  'ОТБОРТОВАННЫХ_ДНИЩ': 'flanged',
+  'ОБРЕЗАННЫХ_ДНИЩ': 'trimmed',
+  'УПАКОВАННЫХ_ДНИЩ': 'packed',
+  'ПАЧЕК_В_ПЛЕНКУ': 'film_packs',
+  'РАЗГРУЖЕННЫХ_МАШИН': 'unloaded',
+  'ОТГРУЖЕННЫХ_МАШИН': 'loaded',
+  'САДОК_МАЛАЯ_ПЕЧЬ': 'small_furnace',
+  'САДОК_БОЛЬШАЯ_ПЕЧЬ': 'large_furnace',
+  'ПОЛОМКИ_И_ПРОСТОИ': 'breakdowns',
+  'TIMESTAMP': 'timestamp'
+};
+
 function doGet(e) {
   if (e?.parameter?.action === 'get') {
     const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
     const data = sheet.getDataRange().getValues();
     const rows = [];
     
+    // Получаем заголовки
+    const headers = data[0];
+    
     for (let i = 1; i < data.length; i++) {
       const row = {};
-      for (let j = 0; j < data[0].length; j++) {
-        row[data[0][j]] = data[i][j];
+      for (let j = 0; j < headers.length; j++) {
+        const header = headers[j];
+        const key = COLUMN_MAP[header] || header; // Маппим на английский или оставляем как есть
+        row[key] = data[i][j];
       }
       row.id = String(data[i][0]);
       rows.push(row);

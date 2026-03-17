@@ -62,11 +62,23 @@ export class UI {
         let val = row[h];
         if (val === undefined || val === null) val = '';
         
-        // Форматируем даты (ISO формат -> DD.MM.YYYY)
-        if (typeof val === 'string' && val.match(/^\d{4}-\d{2}-\d{2}T/)) {
-          const date = new Date(val);
-          if (!isNaN(date.getTime())) {
-            val = date.toLocaleDateString('ru-RU');
+        // Форматируем даты (ISO формат или DD.MM.YYYY)
+        if (typeof val === 'string') {
+          // ISO формат: 2026-03-16T...
+          if (val.match(/^\d{4}-\d{2}-\d{2}T/)) {
+            const date = new Date(val);
+            if (!isNaN(date.getTime())) {
+              val = date.toLocaleDateString('ru-RU');
+            }
+          }
+          // Уже в формате DD.MM.YYYY - оставляем как есть
+          else if (val.match(/^\d{2}\.\d{2}\.\d{4}$/)) {
+            // val уже в правильном формате
+          }
+          // Формат YYYY-MM-DD
+          else if (val.match(/^\d{4}-\d{2}-\d{2}$/)) {
+            const [y, m, d] = val.split('-');
+            val = `${d}.${m}.${y}`;
           }
         }
         
@@ -75,7 +87,17 @@ export class UI {
           val = val.substring(0, 50) + '…';
         }
         
-        html += `<td>${val}</td>`;
+        // Определяем класс выравнивания
+        // Текстовые поля (ФИО, Поломки) выравниваем по левому краю
+        const lowerH = h.toLowerCase();
+        const isTextField = lowerH.includes('master') || 
+                           lowerH.includes('мастер') || 
+                           lowerH.includes('фио') ||
+                           lowerH.includes('breakdowns') ||
+                           lowerH.includes('поломки');
+        const tdClass = isTextField ? 'text-left' : '';
+        
+        html += `<td class="${tdClass}">${val}</td>`;
       });
       
       if (editable) {

@@ -33,10 +33,15 @@ export class Storage {
       window[callbackName] = (response) => {
         clearTimeout(timeout);
         cleanup();
+        // Защита от undefined response
+        if (!response) {
+          reject(new Error('Empty response from server'));
+          return;
+        }
         if (response.result === 'success' && Array.isArray(response.data)) {
           resolve(response.data);
         } else {
-          reject(new Error(response.message || 'Error'));
+          reject(new Error(response.message || 'Invalid response format'));
         }
       };
       

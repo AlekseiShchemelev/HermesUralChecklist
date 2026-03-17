@@ -2,9 +2,15 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+  <meta name="description" content="Сменный чек-лист для учёта производственных показателей">
+  <meta name="theme-color" content="#2563eb">
   <title>Сменный чек-лист</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/main.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
   <div class="app-container">
@@ -15,11 +21,15 @@
       <nav class="mode-switcher">
         <button class="mode-btn active" data-mode="input">
           <span class="icon">✏️</span>
-          <span>Ввод данных</span>
+          <span>Ввод</span>
         </button>
         <button class="mode-btn" data-mode="view">
+          <span class="icon">📋</span>
+          <span>Таблица</span>
+        </button>
+        <button class="mode-btn" data-mode="reports">
           <span class="icon">📊</span>
-          <span>Просмотр и редактирование</span>
+          <span>Отчёты</span>
         </button>
       </nav>
     </header>
@@ -119,7 +129,7 @@
               <tfoot>
                 <tr>
                   <th>Общее количество:</th>
-                  <th><input type="number" id="total_people" readonly value="0"></th>
+                  <th><input type="number" id="total_people" class="people-input" readonly value="0"></th>
                 </tr>
               </tfoot>
             </table>
@@ -296,10 +306,76 @@
         <div id="tableContainer" class="data-table-container">
           <div class="empty-state">
             <div class="empty-state-icon">📭</div>
-            <p>Нажмите "Применить" для загрузки данных</p>
+            <p>Нажмите "Обновить из таблицы" для загрузки данных</p>
           </div>
         </div>
+        <div id="loadMoreContainer" style="text-align: center; margin-top: 15px; display: none;">
+          <button id="loadMoreBtn" class="btn btn-secondary">Загрузить ещё 10 записей</button>
+        </div>
         <div id="summary" class="summary"></div>
+      </div>
+    </section>
+
+    <!-- Секция: Отчёты и графики -->
+    <section id="reports-section" class="content-section">
+      <div class="card">
+        <h2 class="card-title">📊 Отчёты и аналитика</h2>
+        
+        <!-- Фильтры для отчётов -->
+        <div class="filters" style="margin-bottom: 20px;">
+          <div class="filter-group">
+            <label>Период с</label>
+            <input type="date" id="reportDateFrom">
+          </div>
+          <div class="filter-group">
+            <label>Период по</label>
+            <input type="date" id="reportDateTo">
+          </div>
+          <div class="filter-group">
+            <label>Смена</label>
+            <select id="reportShift">
+              <option value="">Все</option>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+            </select>
+          </div>
+          <div class="filter-actions">
+            <button id="generateReports" class="btn btn-primary">Сформировать отчёты</button>
+          </div>
+        </div>
+
+        <!-- График: Производственные показатели -->
+        <div class="report-section" style="margin-bottom: 40px;">
+          <h3>🏭 Производственные показатели</h3>
+          <div style="height: 400px; margin: 20px 0;">
+            <canvas id="productionChart"></canvas>
+          </div>
+        </div>
+
+        <!-- График: Учёт готовой продукции (днища) -->
+        <div class="report-section" style="margin-bottom: 40px;">
+          <h3>🔧 Учёт готовой продукции (днища)</h3>
+          <div style="height: 400px; margin: 20px 0;">
+            <canvas id="endsChart"></canvas>
+          </div>
+        </div>
+
+        <!-- График: Логистика и термообработка -->
+        <div class="report-section" style="margin-bottom: 40px;">
+          <h3>🚛 Логистика и термическая обработка</h3>
+          <div style="height: 300px; margin: 20px 0;">
+            <canvas id="logisticsChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Отчёт: Поломки и простои -->
+        <div class="report-section">
+          <h3>⚠️ Поломки и простои</h3>
+          <div id="breakdownsReport" class="breakdowns-list" style="margin-top: 20px;">
+            <p class="empty-state">Выберите период и нажмите "Сформировать отчёты"</p>
+          </div>
+        </div>
       </div>
     </section>
   </div>
