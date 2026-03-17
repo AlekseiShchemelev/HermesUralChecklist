@@ -55,7 +55,20 @@ function doPost(e) {
 
 function addRecord(data) {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  const id = data.id || String(new Date().getTime());
+  
+  // Генерируем ID по порядку (1, 2, 3...)
+  let id;
+  if (data.id) {
+    id = String(data.id);
+  } else {
+    const sheetData = sheet.getDataRange().getValues();
+    let maxId = 0;
+    for (let i = 1; i < sheetData.length; i++) {
+      const rowId = parseInt(sheetData[i][0]) || 0;
+      if (rowId > maxId) maxId = rowId;
+    }
+    id = String(maxId + 1);
+  }
   
   sheet.appendRow([
     id,

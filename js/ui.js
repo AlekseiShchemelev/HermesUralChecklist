@@ -62,6 +62,14 @@ export class UI {
         let val = row[h];
         if (val === undefined || val === null) val = '';
         
+        // Форматируем даты (ISO формат -> DD.MM.YYYY)
+        if (typeof val === 'string' && val.match(/^\d{4}-\d{2}-\d{2}T/)) {
+          const date = new Date(val);
+          if (!isNaN(date.getTime())) {
+            val = date.toLocaleDateString('ru-RU');
+          }
+        }
+        
         // Форматируем длинный текст
         if (typeof val === 'string' && val.length > 50) {
           val = val.substring(0, 50) + '…';
