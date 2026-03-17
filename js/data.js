@@ -167,8 +167,6 @@ export class DataManager {
       data: data
     };
     
-    console.log('Отправка данных:', payload);
-    
     try {
       const response = await fetch(CONFIG.appsScriptUrl, {
         method: 'POST',
@@ -179,11 +177,8 @@ export class DataManager {
         body: JSON.stringify(payload),
       });
       
-      console.log('Статус ответа:', response.status);
-      
       // Пробуем прочитать ответ как текст
       const text = await response.text();
-      console.log('Ответ сервера:', text);
       
       // Пробуем распарсить как JSON
       try {
@@ -193,7 +188,6 @@ export class DataManager {
         return { result: 'success', message: text };
       }
     } catch (error) {
-      console.error('Ошибка отправки:', error);
       // При no-cors или ошибке сети, считаем что запрос ушёл
       return { result: 'success', message: 'Данные отправлены' };
     }
@@ -204,7 +198,6 @@ export class DataManager {
    */
   async load() {
     const url = `${CONFIG.appsScriptUrl}?action=get`;
-    console.log('Загрузка данных из:', url);
     
     try {
       const response = await fetch(url, {
@@ -212,11 +205,8 @@ export class DataManager {
         mode: 'cors',
       });
       
-      console.log('Статус ответа:', response.status);
-      
       // Пробуем получить текст ответа
       const text = await response.text();
-      console.log('Ответ сервера (первые 200 символов):', text.substring(0, 200));
       
       // Если ответ начинается с HTML (ошибка авторизации)
       if (text.trim().startsWith('<') || text.includes('<!DOCTYPE') || text.includes('Скрипт')) {
@@ -244,7 +234,6 @@ export class DataManager {
         throw new Error(result.message || 'Неизвестная ошибка сервера');
       }
     } catch (error) {
-      console.error('Ошибка загрузки:', error);
       throw error;
     }
   }

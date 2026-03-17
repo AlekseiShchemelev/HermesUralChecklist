@@ -5,6 +5,15 @@ import CONFIG from './config.js';
 
 export class UI {
   /**
+   * Экранирует HTML для безопасной вставки
+   */
+  static escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  /**
    * Показывает статусное сообщение
    */
   static showStatus(message, type = 'info', container = null) {
@@ -14,7 +23,7 @@ export class UI {
     target.className = `status status-${type}`;
     
     const icon = type === 'success' ? '✓' : type === 'error' ? '✗' : 'ℹ';
-    target.innerHTML = `<span>${icon}</span> ${message}`;
+    target.innerHTML = `<span>${icon}</span> ${this.escapeHtml(String(message))}`;
     
     // Автоматически скрываем успешные сообщения
     if (type === 'success') {
@@ -29,10 +38,26 @@ export class UI {
    * Создаёт таблицу данных
    */
   static createDataTable(data, options = {}) {
-    if (!data || data.length === 0) {
+    // Проверка входных данных
+    if (!Array.isArray(data)) {
+      return `<div class="empty-state">
+        <div class="empty-state-icon">⚠️</div>
+        <p>Некорректные данные</p>
+      </div>`;
+    }
+    
+    if (data.length === 0) {
       return `<div class="empty-state">
         <div class="empty-state-icon">📭</div>
         <p>Нет данных для отображения</p>
+      </div>`;
+    }
+    
+    // Проверка структуры данных
+    if (!data[0] || typeof data[0] !== 'object') {
+      return `<div class="empty-state">
+        <div class="empty-state-icon">⚠️</div>
+        <p>Некорректная структура данных</p>
       </div>`;
     }
 
@@ -97,14 +122,19 @@ export class UI {
                            lowerH.includes('поломки');
         const tdClass = isTextField ? 'text-left' : '';
         
-        html += `<td class="${tdClass}">${val}</td>`;
+        // Экранируем HTML для безопасности
+        const safeVal = this.escapeHtml(String(val));
+        
+        html += `<td class="${tdClass}">${safeVal}</td>`;
       });
       
       if (editable) {
         const rowId = row.id || row.ID || index;
+        // Экранируем ID для безопасности
+        const safeId = this.escapeHtml(String(rowId));
         html += `<td class="actions-cell">
-          <button class="btn btn-sm btn-edit" data-id="${rowId}" data-action="edit" title="Редактировать">✏️</button>
-          <button class="btn btn-sm btn-delete" data-id="${rowId}" data-action="delete" title="Удалить">🗑️</button>
+          <button class="btn btn-sm btn-edit" data-id="${safeId}" data-action="edit" title="Редактировать">✏️</button>
+          <button class="btn btn-sm btn-delete" data-id="${safeId}" data-action="delete" title="Удалить">🗑️</button>
         </td>`;
       }
       
@@ -132,10 +162,13 @@ export class UI {
     
     const title = isEdit ? 'Редактирование записи' : 'Новая запись';
     
+    // Экранируем значение по умолчанию для value
+    const defaultShop = this.escapeHtml('Цех №2');
+    
     modal.innerHTML = `
       <div class="modal">
         <div class="modal-header">
-          <h3 class="modal-title">${title}</h3>
+          <h3 class="modal-title">${this.escapeHtml(title)}</h3>
           <button class="modal-close" data-action="close">&times;</button>
         </div>
         <div class="modal-body">
@@ -159,7 +192,7 @@ export class UI {
               </div>
               <div class="form-group">
                 <label for="edit_shop">Цех</label>
-                <input type="text" id="edit_shop" value="Цех №2" required>
+                <input type="text" id="edit_shop" value="${defaultShop}" required>
               </div>
               <div class="form-group">
                 <label for="edit_master">ФИО мастера</label>
@@ -242,9 +275,17 @@ export class UI {
    * Заполняет форму редактирования данными
    */
   static fillEditForm(data) {
+    // Хелпер для безопасной установки значения
     const setValue = (id, value) => {
       const el = document.getElementById(id);
-      if (el) el.value = value || '';
+      if (el) {
+        // Для input type="text" и textarea экранируем спецсимволы
+        if (el.type === 'text' || el.tagName === 'TEXTAREA') {
+          el.value = this.escapeHtml(String(value || ''));
+        } else {
+          el.value = value || '';
+        }
+      }
     };
 
     // ID записи
@@ -254,7 +295,9 @@ export class UI {
     if (data.date || data.Дата) {
       const dateStr = data.date || data.Дата;
       const [d, m, y] = dateStr.split('.');
-      setValue('edit_date', `${y}-${m}-${d}`);
+      if (d && m && y) {
+        setValue('edit_date', `${y}-${m}-${d}`);
+      }
     }
 
     // Основные поля
@@ -290,19 +333,27 @@ export class UI {
   static gatherEditFormData() {
     const getValue = (id) => {
       const el = document.getElementById(id);
-      return el ? el.value : '';
+      return el ? el.value.trim() : '';
     };
 
     const getNumber = (id) => {
       const el = document.getElementById(id);
-      return el ? (Number(el.value) || 0) : 0;
+      const val = el ? parseInt(el.value, 10) : 0;
+      return isNaN(val) ? 0 : Math.max(0, val);
     };
 
     // Форматируем дату
     const dateVal = getValue('edit_date');
+    if (!dateVal || !dateVal.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      throw new Error('Некорректная дата');
+    }
     const [y, m, d] = dateVal.split('-');
     const formattedDate = `${d}.${m}.${y}`;
+    
     const shift = getValue('edit_shift');
+    if (!shift || !['1', '2', '3'].includes(shift)) {
+      throw new Error('Некорректная смена');
+    }
     
     // ID из record_id (при редактировании) или null (при добавлении - сгенерируется в storage.js)
     const id = getValue('record_id') || null;
@@ -364,8 +415,8 @@ export class UI {
    * Показывает ошибку
    */
   static showError(container, message) {
-    // Заменяем переносы строк на <br>
-    const formattedMessage = message.replace(/\n/g, '<br>');
+    // Заменяем переносы строк на <br> и экранируем HTML
+    const formattedMessage = this.escapeHtml(String(message)).replace(/\n/g, '<br>');
     container.innerHTML = `
       <div class="error-message" style="text-align: left; font-family: monospace; white-space: pre-wrap;">
         <p>⚠️ Ошибка соединения с сервером</p>

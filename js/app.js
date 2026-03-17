@@ -69,10 +69,25 @@ class App {
     // Если переключились на отчёты - загружаем данные для графиков
     if (mode === 'reports') {
       this.loadReportData();
+    } else {
+      // Уничтожаем графики при уходе из раздела отчётов для экономии памяти
+      this.destroyCharts();
     }
     
     // Обновляем URL hash
     window.location.hash = mode;
+  }
+
+  /**
+   * Уничтожает все графики
+   */
+  destroyCharts() {
+    Object.keys(this.charts).forEach(key => {
+      if (this.charts[key]) {
+        this.charts[key].destroy();
+        this.charts[key] = null;
+      }
+    });
   }
 
   /**
@@ -109,8 +124,15 @@ class App {
     
     if (!form) return;
     
+    // Флаг для защиты от двойной отправки
+    this.isSubmitting = false;
+    
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
+      
+      // Защита от двойной отправки
+      if (this.isSubmitting) return;
+      this.isSubmitting = true;
       
       // Блокируем кнопку
       submitBtn.disabled = true;
@@ -124,28 +146,28 @@ class App {
       if (errors.length > 0) {
         UI.showStatus(errors.join('; '), 'error');
         submitBtn.disabled = false;
+        this.isSubmitting = false;
         return;
       }
       
       try {
-        console.log('=== ОТПРАВКА ДАННЫХ ===');
-        console.log('URL:', CONFIG.appsScriptUrl);
-        console.log('Данные:', JSON.stringify(data, null, 2));
-        
         // Отправляем через storage
         const result = await this.storage.save(data);
-        console.log('Результат:', result);
         
         if (result && result.result === 'error') {
           UI.showStatus(result.message || 'Ошибка сервера', 'error');
         } else {
           UI.showStatus('✓ Отправлено в Google Sheets! Проверьте таблицу.', 'success');
+          // Очищаем форму после успешной отправки
+          form.reset();
+          this.setDefaultDate();
+          DataManager.updateTotalPeople();
         }
       } catch (error) {
-        console.error('Ошибка:', error);
         UI.showStatus('Ошибка: ' + error.message, 'error');
       } finally {
         submitBtn.disabled = false;
+        this.isSubmitting = false;
       }
     });
   }
@@ -340,24 +362,34 @@ class App {
    * Открывает модальное окно редактирования
    */
   openEditModal(data = null) {
+    // Удаляем существующее модальное окно если есть
+    const existingModal = document.getElementById('editModal');
+    if (existingModal) {
+      existingModal.remove();
+    }
+    
     const modal = UI.createEditModal(data);
     
     // Обработчики модального окна
-    modal.addEventListener('click', async (e) => {
+    const clickHandler = async (e) => {
       const action = e.target.dataset.action;
       
       if (action === 'close' || e.target === modal) {
+        modal.removeEventListener('click', clickHandler);
         UI.closeModal();
       } else if (action === 'save') {
+        modal.removeEventListener('click', clickHandler);
         await this.saveEditForm();
       }
-    });
+    };
+    
+    modal.addEventListener('click', clickHandler);
     
     // Закрытие по Escape
     const closeOnEscape = (e) => {
       if (e.key === 'Escape') {
-        UI.closeModal();
         document.removeEventListener('keydown', closeOnEscape);
+        UI.closeModal();
       }
     };
     document.addEventListener('keydown', closeOnEscape);
@@ -382,7 +414,14 @@ class App {
    * Сохраняет форму редактирования
    */
   async saveEditForm() {
-    const data = UI.gatherEditFormData();
+    let data;
+    
+    try {
+      data = UI.gatherEditFormData();
+    } catch (error) {
+      alert('Ошибка валидации: ' + error.message);
+      return;
+    }
     
     // Валидация
     if (!data.date || !data.shift || !data.shop || !data.master) {
@@ -514,59 +553,36 @@ class App {
     const dateTo = document.getElementById('reportDateTo')?.value;
     const shift = document.getElementById('reportShift')?.value;
     
-    console.log('Фильтрация отчётов:', { dateFrom, dateTo, shift, totalRecords: data.length });
-    
-    const result = data.filter(row => {
+    return data.filter(row => {
       // Получаем дату записи (пробуем разные варианты названий полей)
       const rowDateStr = row.date || row.Дата || row['ДАТА'];
-      if (!rowDateStr) {
-        console.log('Запись без даты, пропускаем');
-        return false;
-      }
+      if (!rowDateStr) return false;
       
       const rowDate = this.parseDate(rowDateStr);
-      if (!rowDate) {
-        console.log('Не удалось распарсить дату:', rowDateStr);
-        return false;
-      }
+      if (!rowDate) return false;
       
       // Фильтр по дате "от"
       if (dateFrom) {
         const from = this.parseDate(dateFrom);
         from.setHours(0, 0, 0, 0);
-        if (rowDate < from) {
-          console.log(`Дата ${rowDateStr} < ${dateFrom}, пропускаем`);
-          return false;
-        }
+        if (rowDate < from) return false;
       }
       
       // Фильтр по дате "до"
       if (dateTo) {
         const to = this.parseDate(dateTo);
         to.setHours(23, 59, 59, 999);
-        if (rowDate > to) {
-          console.log(`Дата ${rowDateStr} > ${dateTo}, пропускаем`);
-          return false;
-        }
+        if (rowDate > to) return false;
       }
       
       // Фильтр по смене
       if (shift) {
         const rowShift = row.shift || row.Смена || row['СМЕНА'];
-        if (String(rowShift) !== String(shift)) {
-          return false;
-        }
+        if (String(rowShift) !== String(shift)) return false;
       }
       
       return true;
     });
-    
-    console.log('После фильтрации осталось:', result.length, 'записей');
-    if (result.length > 0) {
-      console.log('Первая отфильтрованная запись:', result[0]);
-    }
-    
-    return result;
   }
 
   /**
@@ -604,9 +620,6 @@ class App {
   async generateReports() {
     let allData = this.storage.data || [];
     
-    console.log('=== ГЕНЕРАЦИЯ ОТЧЁТОВ ===');
-    console.log('Всего данных в storage:', allData.length);
-    
     // Если данных нет - загружаем
     if (allData.length === 0) {
       try {
@@ -624,20 +637,7 @@ class App {
       return;
     }
     
-    // Проверяем структуру данных
-    console.log('Ключи первой записи:', Object.keys(allData[0]));
-    console.log('Пример записи:', JSON.stringify(allData[0], null, 2));
-    
-    // Проверяем значения полей
-    const testRecord = allData[0];
-    console.log('Тест получения значений:');
-    console.log('  Дата:', testRecord.date || testRecord.Дата || testRecord['ДАТА']);
-    console.log('  Плазма листы:', this.getValue(testRecord, 'plasma_sheets', 'ПЛАЗМА_ЛИСТЫ'));
-    console.log('  Строжка сегменты:', this.getValue(testRecord, 'strozka_segments', 'СТРОЖКА_ОТСТРОГАНО_СЕГМЕНТОВ'));
-    
     const filteredData = this.filterReportData(allData);
-    
-    console.log('Отфильтровано записей:', filteredData.length);
     
     if (filteredData.length === 0) {
       alert('Нет данных для выбранного периода');
@@ -655,9 +655,6 @@ class App {
     const uniqueDates = [...new Set(sortedData.map(d => {
       return d.date || d.Дата || d['ДАТА'];
     }))].map(d => this.formatChartDate(d));
-    
-    console.log('Уникальные даты:', uniqueDates);
-    console.log('Все даты в данных:', sortedData.map(d => d.date || d.Дата || d['ДАТА']));
     
     // График 1: Производственные показатели
     this.createProductionChart(sortedData, uniqueDates);
@@ -738,13 +735,6 @@ class App {
     
     const maxValue = Math.max(...plasmaData, ...strozkaData, ...svarkaData, ...poloterData, ...zachistkaData, 1);
     
-    console.log('Агрегированные данные производства:', {
-      labels,
-      plasma: plasmaData,
-      strozka: strozkaData,
-      maxValue
-    });
-    
     this.charts.production = new Chart(ctx, {
       type: 'bar',
       data: {
@@ -805,8 +795,6 @@ class App {
     const labels = [...new Set(data.map(d => this.formatChartDate(d.date || d.Дата || d['ДАТА'])))];
     const unloadedData = labels.map(d => aggregated[d].unloaded);
     const loadedData = labels.map(d => aggregated[d].loaded);
-    
-    console.log('График логистики:', { labels, unloadedData, loadedData });
     
     const maxValue = Math.max(...unloadedData, ...loadedData, 1);
     
@@ -893,8 +881,6 @@ class App {
     const smallData = labels.map(d => aggregated[d].small);
     const largeData = labels.map(d => aggregated[d].large);
     
-    console.log('График термообработки:', { labels, smallData, largeData });
-    
     const maxValue = Math.max(...smallData, ...largeData, 1);
     
     this.charts.furnace = new Chart(ctx, {
@@ -980,14 +966,6 @@ class App {
       totals['Упакованные'] += this.getValue(d, 'packed', 'УПАКОВАННЫХ_ДНИЩ');
     });
     
-    console.log('График днищ - итоги:', totals);
-    console.log('Все данные для днищ:', data.map(d => ({
-      date: d.date || d.Дата,
-      old: this.getValue(d, 'stamped_old', 'ОТШТАМПОВАНО_ПРЕСС_СТАРЫЙ'),
-      italy: this.getValue(d, 'stamped_italy', 'ОТШТАМПОВАНО_ИТАЛЬЯНЕЦ'),
-      new: this.getValue(d, 'stamped_new', 'ОТШТАМПОВАНО_ПРЕСС_НОВЫЙ')
-    })));
-    
     // Фильтруем нулевые значения
     const entries = Object.entries(totals).filter(([k, v]) => v > 0);
     
@@ -1071,6 +1049,15 @@ class App {
   }
 
   /**
+   * Экранирует HTML
+   */
+  escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  /**
    * Отчёт по поломкам
    */
   createBreakdownsReport(data) {
@@ -1081,7 +1068,7 @@ class App {
     const getText = (row, ...fields) => {
       for (const f of fields) {
         if (row[f] !== undefined && row[f] !== null && row[f] !== '') {
-          return row[f];
+          return String(row[f]);
         }
       }
       return '';
@@ -1105,12 +1092,17 @@ class App {
     
     let html = '<div class="breakdowns-list">';
     breakdowns.forEach(b => {
+      // Экранируем все пользовательские данные
+      const safeDate = this.escapeHtml(b.date);
+      const safeShift = this.escapeHtml(b.shift);
+      const safeText = this.escapeHtml(b.text);
+      
       html += `
         <div class="breakdown-item" style="padding: 15px; margin: 10px 0; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;">
           <div style="font-weight: bold; color: #856404; margin-bottom: 5px;">
-            📅 ${b.date} | Смена ${b.shift}
+            📅 ${safeDate} | Смена ${safeShift}
           </div>
-          <div style="color: #856404;">${b.text}</div>
+          <div style="color: #856404;">${safeText}</div>
         </div>
       `;
     });

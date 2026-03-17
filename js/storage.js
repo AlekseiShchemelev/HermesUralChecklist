@@ -21,6 +21,11 @@ export class Storage {
    * JSONP загрузка
    */
   loadFromGoogleScript() {
+    // Проверка URL
+    if (!CONFIG.appsScriptUrl || !CONFIG.isValidUrl) {
+      return Promise.reject(new Error('Invalid Google Script URL'));
+    }
+    
     return new Promise((resolve, reject) => {
       const callbackName = 'gsCallback_' + Date.now();
       const url = `${CONFIG.appsScriptUrl}?action=get&callback=${callbackName}`;
@@ -66,6 +71,11 @@ export class Storage {
    * Сохраняет запись в Google Sheets
    */
   async save(data) {
+    // Проверка URL
+    if (!CONFIG.appsScriptUrl || !CONFIG.isValidUrl) {
+      throw new Error('Invalid Google Script URL');
+    }
+    
     const sendData = { ...data };
     
     if (data.isUpdate && data.id) {
@@ -86,6 +96,11 @@ export class Storage {
    * Удаляет запись
    */
   async delete(id) {
+    // Проверка URL
+    if (!CONFIG.appsScriptUrl || !CONFIG.isValidUrl) {
+      throw new Error('Invalid Google Script URL');
+    }
+    
     await fetch(CONFIG.appsScriptUrl, {
       method: 'POST',
       mode: 'no-cors',
