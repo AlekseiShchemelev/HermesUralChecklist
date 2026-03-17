@@ -10,7 +10,13 @@ class App {
   constructor() {
     this.dataManager = new DataManager();
     this.storage = new Storage();
-    this.currentMode = 'input'; // 'input' или 'view'
+    this.currentMode = 'input'; // 'input', 'view' или 'reports'
+    this.pagination = {
+      pageSize: 10,
+      currentPage: 0,
+      allData: []
+    };
+    this.charts = {};
     this.init();
   }
 
@@ -58,6 +64,11 @@ class App {
     // Если переключились на просмотр - загружаем данные
     if (mode === 'view') {
       this.loadData();
+    }
+    
+    // Если переключились на отчёты - загружаем данные для графиков
+    if (mode === 'reports') {
+      this.loadReportData();
     }
     
     // Обновляем URL hash
@@ -203,7 +214,7 @@ class App {
   }
 
   /**
-   * Загружает данные для просмотра
+   * Загружает данные для просмотра (с пагинацией)
    */
   async loadData() {
     const container = document.getElementById('tableContainer');
@@ -214,8 +225,12 @@ class App {
     
     try {
       const data = await this.storage.load();
+      this.pagination.allData = data;
+      this.pagination.currentPage = 0;
       this.dataManager.data = data;
-      this.renderTable(data);
+      
+      // Показываем последние 10 записей
+      this.renderPaginatedTable();
       
       const statusEl = document.getElementById('viewStatus');
       UI.showStatus(
@@ -229,17 +244,43 @@ class App {
   }
 
   /**
-   * Отображает таблицу
+   * Отображает таблицу с пагинацией (последние 10 записей)
    */
-  renderTable(data) {
+  renderPaginatedTable() {
     const container = document.getElementById('tableContainer');
     const summary = document.getElementById('summary');
+    const loadMoreContainer = document.getElementById('loadMoreContainer');
     
-    container.innerHTML = UI.createDataTable(data, {
+    const allData = this.pagination.allData;
+    const pageSize = this.pagination.pageSize;
+    const currentPage = this.pagination.currentPage;
+    
+    // Берём последние N записей (с конца)
+    const startIndex = Math.max(0, allData.length - (currentPage + 1) * pageSize);
+    const endIndex = allData.length;
+    const displayData = allData.slice(startIndex, endIndex);
+    
+    // Отображаем в обратном порядке (новые сверху)
+    const reversedData = [...displayData].reverse();
+    
+    container.innerHTML = UI.createDataTable(reversedData, {
       editable: true,
       onEdit: (id) => this.editRecord(id),
       onDelete: (id) => this.deleteRecord(id)
     });
+    
+    // Показываем/скрываем кнопку "Загрузить ещё"
+    const hasMore = startIndex > 0;
+    loadMoreContainer.style.display = hasMore ? 'block' : 'none';
+    
+    // Добавляем обработчик на кнопку
+    const loadMoreBtn = document.getElementById('loadMoreBtn');
+    if (loadMoreBtn) {
+      loadMoreBtn.onclick = () => {
+        this.pagination.currentPage++;
+        this.renderPaginatedTable();
+      };
+    }
     
     summary.innerHTML = `
       <span>Всего записей: <strong>${data.length}</strong></span>
@@ -386,6 +427,271 @@ class App {
     
     UI.showStatus('Данные экспортированы', 'success', document.getElementById('viewStatus'));
   }
+
+  /**
+   * Загружает данные для отчётов
+   */
+  async loadReportData() {
+    // Устанавливаем даты по умолчанию (последние 30 дней)
+    const today = new Date();
+    const monthAgo = new Date();
+    monthAgo.setDate(monthAgo.getDate() - 30);
+    
+    document.getElementById('reportDateTo').valueAsDate = today;
+    document.getElementById('reportDateFrom').valueAsDate = monthAgo;
+    
+    // Загружаем данные
+    try {
+      await this.storage.load();
+      
+      // Привязываем обработчик кнопки
+      const generateBtn = document.getElementById('generateReports');
+      if (generateBtn) {
+        generateBtn.onclick = () => this.generateReports();
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки данных для отчётов:', error);
+    }
+  }
+
+  /**
+   * Фильтрует данные по периоду и смене
+   */
+  filterReportData(data) {
+    const dateFrom = document.getElementById('reportDateFrom').value;
+    const dateTo = document.getElementById('reportDateTo').value;
+    const shift = document.getElementById('reportShift').value;
+    
+    return data.filter(row => {
+      // Фильтр по дате
+      if (dateFrom || dateTo) {
+        const rowDate = row.date || row.Дата;
+        if (!rowDate) return false;
+        
+        const [d, m, y] = rowDate.split('.');
+        const rowDateObj = new Date(y, m - 1, d);
+        
+        if (dateFrom) {
+          const from = new Date(dateFrom);
+          if (rowDateObj < from) return false;
+        }
+        if (dateTo) {
+          const to = new Date(dateTo);
+          to.setHours(23, 59, 59);
+          if (rowDateObj > to) return false;
+        }
+      }
+      
+      // Фильтр по смене
+      if (shift && row.shift != shift && row.Смена != shift) return false;
+      
+      return true;
+    });
+  }
+
+  /**
+   * Генерирует отчёты и графики
+   */
+  async generateReports() {
+    const allData = this.storage.data || [];
+    const filteredData = this.filterReportData(allData);
+    
+    if (filteredData.length === 0) {
+      alert('Нет данных для выбранного периода');
+      return;
+    }
+    
+    // График 1: Производственные показатели
+    this.createProductionChart(filteredData);
+    
+    // График 2: Днища
+    this.createEndsChart(filteredData);
+    
+    // График 3: Логистика
+    this.createLogisticsChart(filteredData);
+    
+    // Отчёт по поломкам
+    this.createBreakdownsReport(filteredData);
+  }
+
+  /**
+   * График производственных показателей
+   */
+  createProductionChart(data) {
+    const ctx = document.getElementById('productionChart');
+    if (!ctx) return;
+    
+    // Уничтожаем старый график
+    if (this.charts.production) {
+      this.charts.production.destroy();
+    }
+    
+    // Подготавливаем данные
+    const labels = data.map(d => d.date || d.Дата).reverse();
+    const plasmaData = data.map(d => Number(d.plasma_sheets || d['Плазма_листы']) || 0).reverse();
+    const strozkaData = data.map(d => Number(d.strozka_segments || d['Строжка_сегменты']) || 0).reverse();
+    const svarkaData = data.map(d => Number(d.avtosvarka_cards || d['Авт_сварка_карты']) || 0).reverse();
+    const poloterData = data.map(d => Number(d.poloter_cleaned || d['Полотер_карты']) || 0).reverse();
+    const zachistkaData = data.map(d => Number(d.zachistka_cleaned || d['Зачистка_карты']) || 0).reverse();
+    
+    this.charts.production = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [
+          { label: 'Плазма (листы)', data: plasmaData, backgroundColor: '#FF6384' },
+          { label: 'Строжка (сегменты)', data: strozkaData, backgroundColor: '#36A2EB' },
+          { label: 'Авт. сварка (карты)', data: svarkaData, backgroundColor: '#FFCE56' },
+          { label: 'Полотер (карты)', data: poloterData, backgroundColor: '#4BC0C0' },
+          { label: 'Зачистка (карты)', data: zachistkaData, backgroundColor: '#9966FF' }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          title: { display: true, text: 'Производственные показатели по дням' }
+        },
+        scales: {
+          y: { beginAtZero: true }
+        }
+      }
+    });
+  }
+
+  /**
+   * График учёта днищ
+   */
+  createEndsChart(data) {
+    const ctx = document.getElementById('endsChart');
+    if (!ctx) return;
+    
+    if (this.charts.ends) {
+      this.charts.ends.destroy();
+    }
+    
+    // Суммируем данные по типам днищ
+    const totals = {
+      'Пресс старый': 0,
+      'Итальянец': 0,
+      'Пресс новый': 0,
+      'Комбинированные': 0,
+      'Ремонтные': 0,
+      'Отбортованные': 0,
+      'Обрезанные': 0,
+      'Упакованные': 0
+    };
+    
+    data.forEach(d => {
+      totals['Пресс старый'] += Number(d.stamped_old || d['Штамп_старый']) || 0;
+      totals['Итальянец'] += Number(d.stamped_italy || d['Штамп_италия']) || 0;
+      totals['Пресс новый'] += Number(d.stamped_new || d['Штамп_новый']) || 0;
+      totals['Комбинированные'] += Number(d.combined || d['Комбинированные']) || 0;
+      totals['Ремонтные'] += Number(d.repair || d['Ремонтные']) || 0;
+      totals['Отбортованные'] += Number(d.flanged || d['Отбортованные']) || 0;
+      totals['Обрезанные'] += Number(d.trimmed || d['Обрезанные']) || 0;
+      totals['Упакованные'] += Number(d.packed || d['Упакованные']) || 0;
+    });
+    
+    this.charts.ends = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: Object.keys(totals),
+        datasets: [{
+          data: Object.values(totals),
+          backgroundColor: [
+            '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0',
+            '#9966FF', '#FF9F40', '#C9CBCF', '#7CFC00'
+          ]
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          title: { display: true, text: 'Распределение днищ за период' },
+          legend: { position: 'right' }
+        }
+      }
+    });
+  }
+
+  /**
+   * График логистики
+   */
+  createLogisticsChart(data) {
+    const ctx = document.getElementById('logisticsChart');
+    if (!ctx) return;
+    
+    if (this.charts.logistics) {
+      this.charts.logistics.destroy();
+    }
+    
+    const labels = data.map(d => d.date || d.Дата).reverse();
+    const unloadedData = data.map(d => Number(d.unloaded || d['Разгружено']) || 0).reverse();
+    const loadedData = data.map(d => Number(d.loaded || d['Отгружено']) || 0).reverse();
+    const smallFurnaceData = data.map(d => Number(d.small_furnace || d['Малая_печь']) || 0).reverse();
+    const largeFurnaceData = data.map(d => Number(d.large_furnace || d['Большая_печь']) || 0).reverse();
+    
+    this.charts.logistics = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [
+          { label: 'Разгружено машин', data: unloadedData, borderColor: '#FF6384', fill: false },
+          { label: 'Отгружено машин', data: loadedData, borderColor: '#36A2EB', fill: false },
+          { label: 'Малая печь', data: smallFurnaceData, borderColor: '#FFCE56', fill: false },
+          { label: 'Большая печь', data: largeFurnaceData, borderColor: '#4BC0C0', fill: false }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          title: { display: true, text: 'Логистика и термообработка' }
+        },
+        scales: {
+          y: { beginAtZero: true }
+        }
+      }
+    });
+  }
+
+  /**
+   * Отчёт по поломкам
+   */
+  createBreakdownsReport(data) {
+    const container = document.getElementById('breakdownsReport');
+    if (!container) return;
+    
+    const breakdowns = data
+      .filter(d => d.breakdowns || d['Поломки'])
+      .map(d => ({
+        date: d.date || d.Дата,
+        shift: d.shift || d.Смена,
+        text: d.breakdowns || d['Поломки']
+      }));
+    
+    if (breakdowns.length === 0) {
+      container.innerHTML = '<p class="empty-state">За выбранный период поломок не зарегистрировано</p>';
+      return;
+    }
+    
+    let html = '<div class="breakdowns-list">';
+    breakdowns.forEach(b => {
+      html += `
+        <div class="breakdown-item" style="padding: 15px; margin: 10px 0; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;">
+          <div style="font-weight: bold; color: #856404; margin-bottom: 5px;">
+            📅 ${b.date} | Смена ${b.shift}
+          </div>
+          <div style="color: #856404;">${b.text}</div>
+        </div>
+      `;
+    });
+    html += '</div>';
+    
+    container.innerHTML = html;
+  }
 }
 
 // Инициализация при загрузке DOM
@@ -394,8 +700,8 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Проверяем hash для начального режима
   const hash = window.location.hash.slice(1);
-  if (hash === 'view') {
-    window.app.switchMode('view');
+  if (hash === 'view' || hash === 'reports') {
+    window.app.switchMode(hash);
   }
 });
 
