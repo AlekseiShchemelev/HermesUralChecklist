@@ -382,7 +382,7 @@ class App {
   /**
    * Применяет фильтры
    */
-  applyFilters() {
+  async applyFilters() {
     const filters = {
       dateFrom: document.getElementById('dateFrom').value,
       dateTo: document.getElementById('dateTo').value,
@@ -391,7 +391,7 @@ class App {
       master: document.getElementById('filterMaster').value.trim()
     };
     
-    const filtered = this.dataManager.filter(filters);
+    const filtered = await this.dataManager.filter(filters);
     
     const container = document.getElementById('tableContainer');
     container.innerHTML = UI.createDataTable(filtered, {
@@ -555,6 +555,12 @@ class App {
       generateBtn.onclick = () => this.generateReports();
     }
     
+    // Кнопка сброса фильтров отчетов
+    const resetReportBtn = document.getElementById('resetReportFilters');
+    if (resetReportBtn) {
+      resetReportBtn.onclick = () => this.resetReportFilters();
+    }
+    
     // Используем requestIdleCallback для не критичных операций
     const scheduleWork = window.requestIdleCallback || ((cb) => setTimeout(cb, 1));
     
@@ -625,6 +631,20 @@ class App {
       
       return true;
     });
+  }
+
+  /**
+   * Сбрасывает фильтры отчетов
+   */
+  resetReportFilters() {
+    const today = new Date();
+    const monthAgo = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
+    
+    document.getElementById('reportDateFrom').valueAsDate = monthAgo;
+    document.getElementById('reportDateTo').valueAsDate = today;
+    document.getElementById('reportShift').value = '';
+    
+    this.generateReports();
   }
 
   /**

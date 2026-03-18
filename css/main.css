@@ -830,6 +830,32 @@ table tfoot th {
    MOBILE RESPONSIVE
    ======================================== */
 
+@media (max-width: 900px) {
+  .filters {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 14px;
+    gap: 2px;
+    margin-bottom: 18px;
+  }
+  
+  .filter-group {
+    flex: none;
+    width: 100%;
+    margin-bottom: 4px;
+  }
+  
+  .filter-group label {
+    margin-bottom: 3px;
+    font-size: 11px;
+  }
+  
+  .filter-group input,
+  .filter-group select {
+    padding: 8px 12px;
+  }
+}
+
 @media (max-width: 768px) {
   :root {
     --text-base: 0.9375rem;
@@ -884,26 +910,29 @@ table tfoot th {
   .filters {
     flex-direction: column;
     align-items: stretch;
-    padding: 16px;
-    gap: 4px;
-    margin-bottom: 20px;
+    padding: 12px;
+    gap: 2px;
+    margin-bottom: 16px;
   }
   
-  .filter-group {
-    margin-bottom: 8px;
+  .filters .filter-group {
+    width: 100%;
+    margin-bottom: 4px;
+    margin-top: 0;
   }
   
-  .filter-group:last-child {
+  .filters .filter-group:last-child {
     margin-bottom: 0;
   }
   
-  .report-section {
-    padding: 20px;
-    margin-bottom: 24px;
+  .filters .filter-group label {
+    margin-bottom: 2px;
+    margin-top: 0;
   }
   
-  .filter-group {
-    width: 100%;
+  .report-section {
+    padding: 16px;
+    margin-bottom: 20px;
   }
   
   .filter-actions {
