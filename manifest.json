@@ -2,12 +2,12 @@
   "name": "Сменный чек-лист",
   "short_name": "Чек-лист",
   "description": "Приложение для учёта производственных показателей",
-  "start_url": "/",
+  "start_url": "./",
   "display": "standalone",
   "background_color": "#f8fafc",
   "theme_color": "#2563eb",
   "orientation": "portrait-primary",
-  "scope": "/",
+  "scope": "./",
   "lang": "ru",
   "icons": [
     {

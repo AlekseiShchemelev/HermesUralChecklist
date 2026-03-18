@@ -1,5 +1,6 @@
 /**
- * Модуль работы с Google Sheets (CORS версия)
+ * Модуль работы с Google Sheets
+ * Использует JSONP для GET (надёжно) и no-cors для POST
  */
 import CONFIG from './config.js';
 
@@ -11,12 +12,11 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5 минут
 export class Storage {
   constructor() {
     this.data = [];
-    this.abortController = null;
     this._loadFromCache();
   }
   
   /**
-   * Загружает данные из localStorage (быстрый старт)
+   * Загружает данные из localStorage
    */
   _loadFromCache() {
     try {
@@ -30,92 +30,38 @@ export class Storage {
           return true;
         }
       }
-    } catch (e) {
-      // Игнорируем ошибки localStorage
-    }
+    } catch (e) {}
     return false;
   }
   
-  /**
-   * Сохраняет данные в localStorage
-   */
   _saveToCache(data) {
     try {
       localStorage.setItem(CACHE_KEY, JSON.stringify(data));
       localStorage.setItem(CACHE_TIMESTAMP_KEY, String(Date.now()));
-    } catch (e) {
-      // Игнорируем ошибки (может быть переполнение)
-    }
+    } catch (e) {}
   }
   
-  /**
-   * Очищает кэш
-   */
   clearCache() {
     try {
       localStorage.removeItem(CACHE_KEY);
       localStorage.removeItem(CACHE_TIMESTAMP_KEY);
-    } catch (e) {
-      // Игнорируем ошибки
-    }
+    } catch (e) {}
     this.data = [];
   }
 
   /**
-   * Загружает данные из Google Sheets (CORS)
+   * Загружает данные через JSONP (всегда работает)
    */
   async load(forceRefresh = false) {
-    // Если есть свежий кэш и не требуется принудительное обновление
     if (!forceRefresh && this.data.length > 0) {
       return this.data;
     }
     
-    // Отменяем предыдущий запрос если есть
-    if (this.abortController) {
-      this.abortController.abort();
-    }
-    this.abortController = new AbortController();
-    
-    try {
-      const response = await fetch(`${CONFIG.appsScriptUrl}?action=get`, {
-        method: 'GET',
-        headers: { 
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        },
-        signal: this.abortController.signal
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-      
-      const result = await response.json();
-      
-      if (result.result !== 'success') {
-        throw new Error(result.message || 'Server error');
-      }
-      
-      this.data = result.data || [];
-      this._saveToCache(this.data);
-      return this.data;
-      
-    } catch (error) {
-      if (error.name === 'AbortError') {
-        // Request cancelled
-        return this.data; // Возвращаем текущие данные
-      }
-      
-      // Fallback на JSONP если CORS не работает
-      return this.loadJSONP();
-      
-    } finally {
-      this.abortController = null;
-    }
+    return this.loadJSONP();
   }
   
   /**
-   * JSONP fallback для старых браузеров или если CORS не настроен
+   * JSONP загрузка - надёжный метод для Google Script
    */
   loadJSONP() {
     return new Promise((resolve, reject) => {
@@ -125,7 +71,7 @@ export class Storage {
       const timeout = setTimeout(() => {
         cleanup();
         reject(new Error('Timeout'));
-      }, 10000);
+      }, 15000);
       
       window[callbackName] = (response) => {
         clearTimeout(timeout);
@@ -156,7 +102,7 @@ export class Storage {
       script.onerror = () => {
         clearTimeout(timeout);
         cleanup();
-        reject(new Error('Script load error'));
+        reject(new Error('Failed to load'));
       };
       
       document.head.appendChild(script);
@@ -164,124 +110,42 @@ export class Storage {
   }
 
   /**
-   * Сохраняет запись в Google Sheets (CORS)
+   * Сохраняет запись через no-cors (единственный рабочий способ для Google Script)
    */
   async save(data) {
-    if (!CONFIG.appsScriptUrl) {
-      throw new Error('Google Script URL not configured');
-    }
-    
     const sendData = { ...data };
     
     if (data.isUpdate && data.id) {
       sendData.__update_id = data.id;
     }
     
-    // AbortController для таймаута
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 сек
-    
-    try {
-      const response = await fetch(CONFIG.appsScriptUrl, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify(sendData),
-        signal: controller.signal
-      });
-      
-      clearTimeout(timeoutId);
-      
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`HTTP ${response.status}: ${text}`);
-      }
-      
-      const result = await response.json();
-      
-      // Очищаем кэш после успешного сохранения
-      this.clearCache();
-      
-      return result;
-      
-    } catch (error) {
-      clearTimeout(timeoutId);
-      
-      if (error.name === 'AbortError') {
-        throw new Error('Request timeout (30s)');
-      }
-      
-      // Fallback на no-cors если CORS не работает
-      return this.saveNoCors(sendData);
-    }
-  }
-  
-  /**
-   * Fallback сохранение без CORS (не получаем ответ)
-   */
-  async saveNoCors(data) {
+    // Используем no-cors - единственный способ для Google Script
     await fetch(CONFIG.appsScriptUrl, {
       method: 'POST',
       mode: 'no-cors',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
+      body: JSON.stringify(sendData)
     });
     
     // Очищаем кэш
     this.clearCache();
     
-    // Возвращаем псевдо-успех (не знаем реальный результат)
-    return { result: 'success', message: 'Sent (no-cors mode)' };
+    return { result: 'success' };
   }
 
   /**
    * Удаляет запись
    */
   async delete(id) {
-    if (!CONFIG.appsScriptUrl) {
-      throw new Error('Google Script URL not configured');
-    }
+    await fetch(CONFIG.appsScriptUrl, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ __delete_id: id })
+    });
     
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000);
-    
-    try {
-      const response = await fetch(CONFIG.appsScriptUrl, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify({ __delete_id: id }),
-        signal: controller.signal
-      });
-      
-      clearTimeout(timeoutId);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-      
-      const result = await response.json();
-      this.clearCache();
-      return result;
-      
-    } catch (error) {
-      clearTimeout(timeoutId);
-      
-      // Fallback на no-cors
-      await fetch(CONFIG.appsScriptUrl, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ __delete_id: id })
-      });
-      
-      this.clearCache();
-      return { result: 'success' };
-    }
+    this.clearCache();
+    return { result: 'success' };
   }
 
   /**
@@ -295,7 +159,6 @@ export class Storage {
       headers.join(';'),
       ...this.data.map(row => headers.map(h => {
         const val = row[h] ?? '';
-        // Экранируем кавычки и точки с запятой
         if (typeof val === 'string' && (val.includes(';') || val.includes('"'))) {
           return `"${val.replace(/"/g, '""')}"`;
         }

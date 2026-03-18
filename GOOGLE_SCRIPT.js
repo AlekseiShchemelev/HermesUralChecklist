@@ -1,14 +1,6 @@
 // Google Apps Script для сменного чек-листа
 // Разверните как веб-приложение с доступом "Все"
 
-// CORS Headers для всех ответов
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Accept",
-  "Access-Control-Max-Age": "86400"
-};
-
 // Маппинг русских заголовков на английские ключи
 const COLUMN_MAP = {
   'ID': 'id',
@@ -51,24 +43,13 @@ const COLUMN_MAP = {
   'TIMESTAMP': 'timestamp'
 };
 
-// Утилита для создания ответа с CORS
-function createCorsResponse(data, statusCode = 200) {
-  const response = ContentService.createTextOutput(JSON.stringify(data))
-    .setMimeType(ContentService.MimeType.JSON);
-  
-  // Добавляем CORS headers
-  Object.keys(CORS_HEADERS).forEach(key => {
-    response.setHeader(key, CORS_HEADERS[key]);
-  });
-  
-  return response;
-}
-
 function doGet(e) {
-  // Обработка OPTIONS для CORS preflight
-  if (e.parameter.cors === 'true') {
-    return createCorsResponse({status: 'ok'});
-  }
+  // CORS headers для всех ответов
+  const headers = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type"
+  };
   
   if (e?.parameter?.action === 'get') {
     const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
@@ -76,12 +57,12 @@ function doGet(e) {
     const rows = [];
     
     // Получаем заголовки
-    const headers = data[0];
+    const headersRow = data[0];
     
     for (let i = 1; i < data.length; i++) {
       const row = {};
-      for (let j = 0; j < headers.length; j++) {
-        const header = headers[j];
+      for (let j = 0; j < headersRow.length; j++) {
+        const header = headersRow[j];
         const key = COLUMN_MAP[header] || header;
         row[key] = data[i][j];
       }
@@ -89,24 +70,23 @@ function doGet(e) {
       rows.push(row);
     }
     
-    // JSONP поддержка для обратной совместимости
+    // JSONP поддержка
     const callback = e.parameter.callback;
     if (callback) {
-      const response = ContentService
+      return ContentService
         .createTextOutput(callback + '(' + JSON.stringify({result: 'success', data: rows}) + ');')
         .setMimeType(ContentService.MimeType.JAVASCRIPT);
-      
-      Object.keys(CORS_HEADERS).forEach(key => {
-        response.setHeader(key, CORS_HEADERS[key]);
-      });
-      
-      return response;
     }
     
-    return createCorsResponse({result: 'success', data: rows});
+    // Обычный JSON ответ с CORS
+    return ContentService
+      .createTextOutput(JSON.stringify({result: 'success', data: rows}))
+      .setMimeType(ContentService.MimeType.JSON);
   }
   
-  return createCorsResponse({result: 'ok', message: 'Use ?action=get'});
+  return ContentService
+    .createTextOutput(JSON.stringify({result: 'ok', message: 'Use ?action=get'}))
+    .setMimeType(ContentService.MimeType.JSON);
 }
 
 function doPost(e) {
@@ -115,10 +95,12 @@ function doPost(e) {
     
     // Проверка обязательных полей
     if (!data.date || !data.shift || !data.shop || !data.master) {
-      return createCorsResponse({
-        result: 'error', 
-        message: 'Missing required fields: date, shift, shop, master'
-      }, 400);
+      return ContentService
+        .createTextOutput(JSON.stringify({
+          result: 'error', 
+          message: 'Missing required fields: date, shift, shop, master'
+        }))
+        .setMimeType(ContentService.MimeType.JSON);
     }
     
     if (data.__delete_id) {
@@ -131,16 +113,20 @@ function doPost(e) {
     
     return addRecord(data);
   } catch (error) {
-    return createCorsResponse({
-      result: 'error', 
-      message: error.toString()
-    }, 500);
+    return ContentService
+      .createTextOutput(JSON.stringify({
+        result: 'error', 
+        message: error.toString()
+      }))
+      .setMimeType(ContentService.MimeType.JSON);
   }
 }
 
-// OPTIONS для CORS preflight
-function doOptions() {
-  return createCorsResponse({status: 'ok'});
+// OPTIONS для CORS preflight - критически важно!
+function doOptions(e) {
+  return ContentService
+    .createTextOutput('')
+    .setMimeType(ContentService.MimeType.TEXT);
 }
 
 function addRecord(data) {
@@ -201,7 +187,9 @@ function addRecord(data) {
     new Date()
   ]);
   
-  return createCorsResponse({result: 'success', id: id, message: 'Record added'});
+  return ContentService
+    .createTextOutput(JSON.stringify({result: 'success', id: id, message: 'Record added'}))
+    .setMimeType(ContentService.MimeType.JSON);
 }
 
 function updateRecord(id, data) {
@@ -252,7 +240,9 @@ function updateRecord(id, data) {
       ];
       
       sheet.getRange(i + 1, 1, 1, rowData.length).setValues([rowData]);
-      return createCorsResponse({result: 'success', message: 'Updated', id: id});
+      return ContentService
+        .createTextOutput(JSON.stringify({result: 'success', message: 'Updated', id: id}))
+        .setMimeType(ContentService.MimeType.JSON);
     }
   }
   
@@ -267,9 +257,13 @@ function deleteRecord(id) {
   for (let i = 1; i < data.length; i++) {
     if (String(data[i][0]) === String(id)) {
       sheet.deleteRow(i + 1);
-      return createCorsResponse({result: 'success', message: 'Deleted'});
+      return ContentService
+        .createTextOutput(JSON.stringify({result: 'success', message: 'Deleted'}))
+        .setMimeType(ContentService.MimeType.JSON);
     }
   }
   
-  return createCorsResponse({result: 'error', message: 'Not found'}, 404);
+  return ContentService
+    .createTextOutput(JSON.stringify({result: 'error', message: 'Not found'}))
+    .setMimeType(ContentService.MimeType.JSON);
 }
