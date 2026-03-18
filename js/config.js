@@ -6,11 +6,13 @@ const CONFIG = {
   // ВАЖНО: Замените на ваш URL при развёртывании
   appsScriptUrl:
     "https://script.google.com/macros/s/AKfycbwK7OIqM7-NXaaEHi7TjPRX77UlEZfmGdtF3hG4omttQqWSxMcrHX8Oku9S1Ucg2sf8OQ/exec",
-  
+
   // Валидация URL (базовая проверка)
   get isValidUrl() {
-    return this.appsScriptUrl && 
-           this.appsScriptUrl.startsWith('https://script.google.com/macros/s/');
+    return (
+      this.appsScriptUrl &&
+      this.appsScriptUrl.startsWith("https://script.google.com/macros/s/")
+    );
   },
 
   // Настройки приложения

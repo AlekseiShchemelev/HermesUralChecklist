@@ -44,49 +44,78 @@ const COLUMN_MAP = {
 };
 
 function doGet(e) {
-  // CORS headers для всех ответов
-  const headers = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type"
-  };
-  
-  if (e?.parameter?.action === 'get') {
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-    const data = sheet.getDataRange().getValues();
-    const rows = [];
-    
-    // Получаем заголовки
-    const headersRow = data[0];
-    
-    for (let i = 1; i < data.length; i++) {
-      const row = {};
-      for (let j = 0; j < headersRow.length; j++) {
-        const header = headersRow[j];
-        const key = COLUMN_MAP[header] || header;
-        row[key] = data[i][j];
-      }
-      row.id = String(data[i][0]);
-      rows.push(row);
+  try {
+    // Проверяем параметры
+    if (!e || !e.parameter) {
+      return ContentService
+        .createTextOutput(JSON.stringify({result: 'error', message: 'No parameters'}))
+        .setMimeType(ContentService.MimeType.JSON);
     }
     
-    // JSONP поддержка
-    const callback = e.parameter.callback;
-    if (callback) {
+    if (e.parameter.action === 'get') {
+      // Получаем активную таблицу
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      if (!ss) {
+        return ContentService
+          .createTextOutput(JSON.stringify({result: 'error', message: 'No spreadsheet'}))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+      
+      const sheet = ss.getActiveSheet();
+      if (!sheet) {
+        return ContentService
+          .createTextOutput(JSON.stringify({result: 'error', message: 'No active sheet'}))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+      
+      const data = sheet.getDataRange().getValues();
+      const rows = [];
+      
+      // Получаем заголовки
+      const headersRow = data[0] || [];
+      
+      for (let i = 1; i < data.length; i++) {
+        const row = {};
+        for (let j = 0; j < headersRow.length; j++) {
+          const header = headersRow[j];
+          const key = COLUMN_MAP[header] || header;
+          row[key] = data[i][j];
+        }
+        row.id = String(data[i][0] || i);
+        rows.push(row);
+      }
+      
+      // JSONP поддержка
+      const callback = e.parameter.callback;
+      if (callback && /^[a-zA-Z0-9_]+$/.test(callback)) {
+        const jsonpResponse = callback + '(' + JSON.stringify({result: 'success', data: rows}) + ');';
+        return ContentService
+          .createTextOutput(jsonpResponse)
+          .setMimeType(ContentService.MimeType.JAVASCRIPT);
+      }
+      
+      // Обычный JSON ответ
       return ContentService
-        .createTextOutput(callback + '(' + JSON.stringify({result: 'success', data: rows}) + ');')
+        .createTextOutput(JSON.stringify({result: 'success', data: rows}))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    return ContentService
+      .createTextOutput(JSON.stringify({result: 'ok', message: 'Use ?action=get&callback=fn'}))
+      .setMimeType(ContentService.MimeType.JSON);
+      
+  } catch (error) {
+    const errorMessage = 'Error: ' + error.toString();
+    // JSONP ошибка
+    if (e?.parameter?.callback) {
+      return ContentService
+        .createTextOutput(e.parameter.callback + '(' + JSON.stringify({result: 'error', message: errorMessage}) + ');')
         .setMimeType(ContentService.MimeType.JAVASCRIPT);
     }
-    
-    // Обычный JSON ответ с CORS
     return ContentService
-      .createTextOutput(JSON.stringify({result: 'success', data: rows}))
+      .createTextOutput(JSON.stringify({result: 'error', message: errorMessage}))
       .setMimeType(ContentService.MimeType.JSON);
   }
-  
-  return ContentService
-    .createTextOutput(JSON.stringify({result: 'ok', message: 'Use ?action=get'}))
-    .setMimeType(ContentService.MimeType.JSON);
 }
 
 function doPost(e) {

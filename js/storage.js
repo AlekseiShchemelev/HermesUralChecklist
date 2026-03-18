@@ -57,7 +57,29 @@ export class Storage {
       return this.data;
     }
     
-    return this.loadJSONP();
+    // Пробуем загрузить с 3 попытками
+    let lastError;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        console.log(`[Storage] Load attempt ${attempt}/3...`);
+        return await this.loadJSONP();
+      } catch (error) {
+        console.warn(`[Storage] Attempt ${attempt} failed:`, error.message);
+        lastError = error;
+        if (attempt < 3) {
+          // Ждём перед повторной попыткой (1с, 2с)
+          await new Promise(r => setTimeout(r, attempt * 1000));
+        }
+      }
+    }
+    
+    console.error('[Storage] All attempts failed:', lastError.message);
+    // Если есть кэш - используем его
+    if (this.data.length > 0) {
+      return this.data;
+    }
+    // Иначе возвращаем пустой массив
+    return [];
   }
   
   /**
@@ -66,16 +88,28 @@ export class Storage {
   loadJSONP() {
     return new Promise((resolve, reject) => {
       const callbackName = 'gsCallback_' + Date.now();
+      // Валидируем URL
+      if (!CONFIG.appsScriptUrl || !CONFIG.appsScriptUrl.includes('script.google.com')) {
+        reject(new Error('Invalid Google Script URL'));
+        return;
+      }
       const url = `${CONFIG.appsScriptUrl}?action=get&callback=${callbackName}`;
+      
+      // DEBUG
+      console.log('[JSONP] Loading from URL:', url);
       
       const timeout = setTimeout(() => {
         cleanup();
+        console.error('[JSONP] Timeout after 20s');
         reject(new Error('Timeout'));
-      }, 15000);
+      }, 20000);
       
       window[callbackName] = (response) => {
         clearTimeout(timeout);
         cleanup();
+        
+        // DEBUG
+        console.log('[JSONP] Callback received:', response);
         
         if (!response) {
           reject(new Error('Empty response'));
@@ -99,9 +133,10 @@ export class Storage {
       const script = document.createElement('script');
       script.src = url;
       script.async = true;
-      script.onerror = () => {
+      script.onerror = (err) => {
         clearTimeout(timeout);
         cleanup();
+        console.error('[JSONP] Script load error:', err);
         reject(new Error('Failed to load'));
       };
       
