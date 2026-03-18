@@ -3,7 +3,7 @@
  * Инкрементируй VERSION при каждом деплое!
  */
 
-const VERSION = "4"; // <-- МЕНЯЙТЕ ЭТО ЧИСЛО ПРИ КАЖДОМ ОБНОВЛЕНИИ
+const VERSION = "5"; // <-- МЕНЯЙТЕ ЭТО ЧИСЛО ПРИ КАЖДОМ ОБНОВЛЕНИИ
 const CACHE_NAME = `checklist-v${VERSION}`;
 
 // Статические ресурсы для кэширования
@@ -170,9 +170,15 @@ self.addEventListener("fetch", (event) => {
   // Пропускаем некоторые запросы
   if (request.method !== "GET") return;
   if (url.protocol === "chrome-extension:") return;
+  
+  // Пропускаем JSONP-запросы (script теги с callback)
+  // Они загружаются браузером напрямую, без SW
+  if (url.searchParams.has('callback')) {
+    return; // Не перехватываем JSONP
+  }
 
-  // API запросы к Google Script
-  if (url.href.includes("script.google.com")) {
+  // API запросы к Google Script (только обычные fetch, не JSONP)
+  if (url.href.includes("script.google.com") && !url.searchParams.has('callback')) {
     event.respondWith(strategies.api(request));
     return;
   }

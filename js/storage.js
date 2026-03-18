@@ -99,6 +99,7 @@ export class Storage {
       const script = document.createElement('script');
       script.src = url;
       script.async = true;
+      script.crossOrigin = 'anonymous';
       script.onerror = () => {
         clearTimeout(timeout);
         cleanup();
