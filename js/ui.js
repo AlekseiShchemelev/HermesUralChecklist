@@ -66,13 +66,14 @@ export class UI {
     const html = [];
     html.push('<table class="data-table"><thead><tr>');
     
+    // Кнопки действий в начале
+    if (editable) {
+      html.push('<th class="actions-col">Действия</th>');
+    }
+    
     // Заголовки
     for (const h of displayHeaders) {
       html.push(`<th>${escapeHtml(h)}</th>`);
-    }
-    
-    if (editable) {
-      html.push('<th>Действия</th>');
     }
     
     html.push('</tr></thead><tbody>');
@@ -82,6 +83,15 @@ export class UI {
     for (let i = 0; i < len; i++) {
       const row = data[i];
       html.push('<tr>');
+      
+      // Кнопки действий в начале строки
+      if (editable) {
+        const rowId = escapeHtml(String(row.id || row.ID || i));
+        html.push(`<td class="actions-cell">
+          <button class="btn btn-sm btn-edit" data-id="${rowId}" data-action="edit" title="Редактировать">✏️</button>
+          <button class="btn btn-sm btn-delete" data-id="${rowId}" data-action="delete" title="Удалить">🗑️</button>
+        </td>`);
+      }
       
       for (const h of displayHeaders) {
         let val = row[h];
@@ -116,14 +126,6 @@ export class UI {
         
         const cls = isTextField ? ' class="text-left"' : '';
         html.push(`<td${cls}>${escapeHtml(String(val))}</td>`);
-      }
-      
-      if (editable) {
-        const rowId = escapeHtml(String(row.id || row.ID || i));
-        html.push(`<td class="actions-cell">
-          <button class="btn btn-sm btn-edit" data-id="${rowId}" data-action="edit" title="Редактировать">✏️</button>
-          <button class="btn btn-sm btn-delete" data-id="${rowId}" data-action="delete" title="Удалить">🗑️</button>
-        </td>`);
       }
       
       html.push('</tr>');

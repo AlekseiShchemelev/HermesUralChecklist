@@ -89,21 +89,30 @@ export class Storage {
       }
       
       const url = `${CONFIG.appsScriptUrl}?action=get&callback=${callbackName}`;
+      let isHandled = false;
       
       const timeout = setTimeout(() => {
-        cleanup();
-        reject(new Error('Timeout'));
-      }, 20000);
+        if (!isHandled) {
+          isHandled = true;
+          cleanup();
+          reject(new Error('Timeout'));
+        }
+      }, 30000); // Увеличили до 30 секунд
       
       window[callbackName] = (response) => {
+        // Защита от двойного вызова
+        if (isHandled) return;
+        isHandled = true;
+        
         clearTimeout(timeout);
-        cleanup();
         
         if (response?.result === 'success' && Array.isArray(response.data)) {
           this.data = response.data;
           this._saveToCache(response.data);
+          cleanup();
           resolve(response.data);
         } else {
+          cleanup();
           reject(new Error(response?.message || 'Invalid response'));
         }
       };
@@ -117,9 +126,12 @@ export class Storage {
       script.src = url;
       script.async = true;
       script.onerror = () => {
-        clearTimeout(timeout);
-        cleanup();
-        reject(new Error('Failed to load'));
+        if (!isHandled) {
+          isHandled = true;
+          clearTimeout(timeout);
+          cleanup();
+          reject(new Error('Failed to load'));
+        }
       };
       
       document.head.appendChild(script);
@@ -132,7 +144,8 @@ export class Storage {
   async save(data) {
     const sendData = { ...data };
     
-    if (data.isUpdate && data.id) {
+    // Если есть id - это обновление существующей записи
+    if (data.id) {
       sendData.__update_id = data.id;
     }
     

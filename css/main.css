@@ -419,10 +419,17 @@ table tfoot th {
 }
 
 /* Action buttons in table */
+.actions-col {
+  width: 100px;
+  min-width: 100px;
+  text-align: center;
+}
+
 .actions-cell {
   display: flex;
   gap: 8px;
   white-space: nowrap;
+  justify-content: center;
 }
 
 .btn-edit {
@@ -824,6 +831,14 @@ table tfoot th {
   .filters {
     flex-direction: column;
     align-items: stretch;
+    padding: 16px;
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+  
+  .report-section {
+    padding: 20px;
+    margin-bottom: 24px;
   }
   
   .filter-group {
@@ -878,12 +893,32 @@ table tfoot th {
 }
 
 @media (max-width: 480px) {
-  .mode-btn span {
-    display: none;
+  .mode-btn {
+    padding: 8px 10px;
+    font-size: var(--text-xs);
   }
   
   .mode-btn .icon {
-    font-size: 1.3em;
+    font-size: 1.1em;
+    margin-right: 4px;
+  }
+  
+  /* Уменьшаем отступы в фильтрах */
+  .filters {
+    padding: 12px;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  
+  /* Уменьшаем отступы в отчетах */
+  .report-section {
+    padding: 16px;
+    margin-bottom: 20px;
+  }
+  
+  .report-section h3 {
+    margin-bottom: 16px;
+    padding-bottom: 8px;
   }
 }
 
