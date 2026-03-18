@@ -606,30 +606,166 @@ table tfoot th {
 }
 
 .data-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--text-sm);
-  /* Оптимизация рендеринга */
+  width: auto;
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 14px;
   contain: layout;
-  will-change: transform;
+}
+
+/* Закрепленные колонки */
+.data-table th,
+.data-table td {
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--border-light);
+  vertical-align: middle;
+  text-align: center;
+  background: white;
 }
 
 .data-table th {
   background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
   color: white;
-  padding: 14px 12px;
   position: sticky;
   top: 0;
   z-index: 10;
   white-space: nowrap;
   font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
+/* Закрепление первых 6 колонок (Действия, ID, Дата, Смена, Цех, ФИО) */
+.data-table th:nth-child(1),
+.data-table td:nth-child(1) {
+  position: sticky;
+  left: 0;
+  z-index: 20;
+  background: white;
+  border-right: 2px solid var(--border-color);
+  min-width: 90px;
+}
+
+.data-table th:nth-child(1) {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  z-index: 30;
+}
+
+.data-table th:nth-child(2),
+.data-table td:nth-child(2) {
+  position: sticky;
+  left: 90px;
+  z-index: 20;
+  background: white;
+  border-right: 2px solid var(--border-color);
+  min-width: 50px;
+}
+
+.data-table th:nth-child(2) {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  z-index: 30;
+}
+
+.data-table th:nth-child(3),
+.data-table td:nth-child(3) {
+  position: sticky;
+  left: 140px;
+  z-index: 20;
+  background: white;
+  border-right: 2px solid var(--border-color);
+  min-width: 90px;
+}
+
+.data-table th:nth-child(3) {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  z-index: 30;
+}
+
+.data-table th:nth-child(4),
+.data-table td:nth-child(4) {
+  position: sticky;
+  left: 230px;
+  z-index: 20;
+  background: white;
+  border-right: 2px solid var(--border-color);
+  min-width: 60px;
+}
+
+.data-table th:nth-child(4) {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  z-index: 30;
+}
+
+.data-table th:nth-child(5),
+.data-table td:nth-child(5) {
+  position: sticky;
+  left: 290px;
+  z-index: 20;
+  background: white;
+  border-right: 2px solid var(--border-color);
+  min-width: 80px;
+}
+
+.data-table th:nth-child(5) {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  z-index: 30;
+}
+
+.data-table th:nth-child(6),
+.data-table td:nth-child(6) {
+  position: sticky;
+  left: 370px;
+  z-index: 20;
+  background: white;
+  border-right: 3px solid var(--primary-light);
+  min-width: 120px;
+}
+
+.data-table th:nth-child(6) {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  z-index: 30;
+}
+
+/* Цвета для четных строк */
+.data-table tr:nth-child(even) td {
+  background: #f8fafc;
+}
+
+/* Закрепленные колонки в четных строках */
+.data-table tr:nth-child(even) td:nth-child(1),
+.data-table tr:nth-child(even) td:nth-child(2),
+.data-table tr:nth-child(even) td:nth-child(3),
+.data-table tr:nth-child(even) td:nth-child(4),
+.data-table tr:nth-child(even) td:nth-child(5),
+.data-table tr:nth-child(even) td:nth-child(6) {
+  background: #f1f5f9;
+}
+
+/* Группировка колонок - разделители (начиная с 7-й, так как первые 6 закреплены) */
+.data-table th:nth-child(13),
+.data-table td:nth-child(13),
+.data-table th:nth-child(19),
+.data-table td:nth-child(19),
+.data-table th:nth-child(28),
+.data-table td:nth-child(28) {
+  border-left: 3px solid var(--primary-light);
+}
+
+/* Единообразный шрифт для всех ячеек */
 .data-table td {
-  padding: 12px;
-  border-bottom: 1px solid var(--border-light);
-  vertical-align: middle;
-  text-align: center;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Увеличенный шрифт для закрепленных колонок */
+.data-table td:nth-child(3),
+.data-table td:nth-child(4),
+.data-table td:nth-child(5),
+.data-table td:nth-child(6) {
+  font-size: 14px;
+  font-weight: 500;
 }
 
 /* Текстовые поля (ФИО, Поломки) выравниваем по левому краю */
@@ -643,6 +779,76 @@ table tfoot th {
 
 .data-table tr:hover {
   background: var(--primary-light);
+}
+
+/* ========================================
+   COMPACT VIEW MODE - 3 уровня сжатия
+   ======================================== */
+
+/* Уровень 1: -30% */
+.data-table.compact-view-1 th:nth-child(1),
+.data-table.compact-view-1 td:nth-child(1) { min-width: 63px; width: 63px; }
+.data-table.compact-view-1 th:nth-child(2),
+.data-table.compact-view-1 td:nth-child(2) { left: 63px; min-width: 35px; width: 35px; }
+.data-table.compact-view-1 th:nth-child(3),
+.data-table.compact-view-1 td:nth-child(3) { left: 98px; min-width: 63px; width: 63px; }
+.data-table.compact-view-1 th:nth-child(4),
+.data-table.compact-view-1 td:nth-child(4) { left: 161px; min-width: 42px; width: 42px; }
+.data-table.compact-view-1 th:nth-child(5),
+.data-table.compact-view-1 td:nth-child(5) { left: 203px; min-width: 56px; width: 56px; }
+.data-table.compact-view-1 th:nth-child(6),
+.data-table.compact-view-1 td:nth-child(6) { left: 259px; min-width: 84px; width: 84px; }
+
+/* Уровень 2: -50% */
+.data-table.compact-view-2 th:nth-child(1),
+.data-table.compact-view-2 td:nth-child(1) { min-width: 45px; width: 45px; }
+.data-table.compact-view-2 th:nth-child(2),
+.data-table.compact-view-2 td:nth-child(2) { left: 45px; min-width: 25px; width: 25px; }
+.data-table.compact-view-2 th:nth-child(3),
+.data-table.compact-view-2 td:nth-child(3) { left: 70px; min-width: 45px; width: 45px; }
+.data-table.compact-view-2 th:nth-child(4),
+.data-table.compact-view-2 td:nth-child(4) { left: 115px; min-width: 30px; width: 30px; }
+.data-table.compact-view-2 th:nth-child(5),
+.data-table.compact-view-2 td:nth-child(5) { left: 145px; min-width: 40px; width: 40px; }
+.data-table.compact-view-2 th:nth-child(6),
+.data-table.compact-view-2 td:nth-child(6) { left: 185px; min-width: 60px; width: 60px; }
+
+/* Уровень 3: -70% */
+.data-table.compact-view-3 th:nth-child(1),
+.data-table.compact-view-3 td:nth-child(1) { min-width: 27px; width: 27px; }
+.data-table.compact-view-3 th:nth-child(2),
+.data-table.compact-view-3 td:nth-child(2) { left: 27px; min-width: 15px; width: 15px; }
+.data-table.compact-view-3 th:nth-child(3),
+.data-table.compact-view-3 td:nth-child(3) { left: 42px; min-width: 27px; width: 27px; }
+.data-table.compact-view-3 th:nth-child(4),
+.data-table.compact-view-3 td:nth-child(4) { left: 69px; min-width: 18px; width: 18px; }
+.data-table.compact-view-3 th:nth-child(5),
+.data-table.compact-view-3 td:nth-child(5) { left: 87px; min-width: 24px; width: 24px; }
+.data-table.compact-view-3 th:nth-child(6),
+.data-table.compact-view-3 td:nth-child(6) { left: 111px; min-width: 36px; width: 36px; }
+
+/* Компактный шрифт для всех уровней */
+.data-table[class*="compact-view-"] {
+  font-size: 12px;
+}
+
+.data-table[class*="compact-view-"] th,
+.data-table[class*="compact-view-"] td {
+  padding: 6px 3px;
+}
+
+/* Уровень 3 - мини шрифт */
+.data-table.compact-view-3 th,
+.data-table.compact-view-3 td {
+  font-size: 10px;
+  padding: 4px 2px;
+}
+
+/* Кнопка активна */
+#compactViewBtn.active {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
 }
 
 /* Summary */
@@ -944,24 +1150,56 @@ table tfoot th {
     flex: 1;
   }
   
-  table {
-    font-size: var(--text-xs);
+  /* Таблица на мобильных */
+  .data-table-container {
+    max-height: 70vh;
   }
   
-  table th,
-  table td {
-    padding: 10px 8px;
+  .data-table {
+    font-size: 13px;
+  }
+  
+  .data-table th,
+  .data-table td {
+    padding: 6px 4px;
+    min-width: 40px;
+    font-size: 13px;
+  }
+  
+  /* Уменьшаем ширину закрепленных колонок на мобильных */
+  .data-table th:nth-child(1),
+  .data-table td:nth-child(1) { left: 0; min-width: 70px; width: 70px; }
+  
+  .data-table th:nth-child(2),
+  .data-table td:nth-child(2) { left: 70px; min-width: 40px; width: 40px; }
+  
+  .data-table th:nth-child(3),
+  .data-table td:nth-child(3) { left: 110px; min-width: 75px; width: 75px; }
+  
+  .data-table th:nth-child(4),
+  .data-table td:nth-child(4) { left: 185px; min-width: 50px; width: 50px; }
+  
+  .data-table th:nth-child(5),
+  .data-table td:nth-child(5) { left: 235px; min-width: 60px; width: 60px; }
+  
+  .data-table th:nth-child(6),
+  .data-table td:nth-child(6) { left: 295px; min-width: 100px; width: 100px; }
+  
+  /* Скрываем менее важные колонки на маленьких экранах */
+  .data-table th:nth-child(n+12),
+  .data-table td:nth-child(n+12) {
+    display: none;
   }
   
   .actions-cell {
     flex-direction: column;
-    gap: 6px;
+    gap: 4px;
   }
   
   .btn-edit,
   .btn-delete {
-    padding: 6px 8px;
-    font-size: var(--text-xs);
+    padding: 4px 6px;
+    font-size: 10px;
   }
   
   .modal {

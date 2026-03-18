@@ -267,22 +267,73 @@ class App {
       exportBtn.addEventListener('click', () => this.exportData());
     }
     
-    // Делегирование событий для таблицы
-    const tableContainer = document.getElementById('tableContainer');
-    if (tableContainer) {
-      tableContainer.addEventListener('click', (e) => {
-        const btn = e.target.closest('[data-action]');
-        if (!btn) return;
-        
-        const action = btn.dataset.action;
-        const id = btn.dataset.id;
-        
-        if (action === 'edit') {
-          this.editRecord(id);
-        } else if (action === 'delete') {
-          this.deleteRecord(id);
-        }
+    // Кнопка компактного вида
+    const compactBtn = document.getElementById('compactViewBtn');
+    if (compactBtn) {
+      // Восстанавливаем состояние
+      this.restoreCompactLevel();
+      
+      compactBtn.addEventListener('click', () => {
+        this.cycleCompactLevel();
       });
+    }
+  }
+  
+  /**
+   * Циклическое переключение уровней сжатия таблицы
+   * Уровни: 0 (обычный) → 1 (-30%) → 2 (-50%) → 3 (-70%) → 0
+   */
+  cycleCompactLevel() {
+    const table = document.querySelector('.data-table');
+    const btn = document.getElementById('compactViewBtn');
+    const btnText = btn?.querySelector('.btn-text');
+    
+    if (!table) return;
+    
+    // Получаем текущий уровень (0-3)
+    let level = parseInt(localStorage.getItem('compactLevel') || '0');
+    
+    // Переходим к следующему уровню
+    level = (level + 1) % 4;
+    
+    // Удаляем все классы сжатия
+    table.classList.remove('compact-view-1', 'compact-view-2', 'compact-view-3');
+    btn?.classList.remove('active');
+    
+    // Применяем новый уровень
+    const labels = ['Стандарт', 'Компактно 1', 'Компактно 2', 'Мини'];
+    
+    if (level > 0) {
+      table.classList.add(`compact-view-${level}`);
+      btn?.classList.add('active');
+    }
+    
+    if (btnText) {
+      btnText.textContent = labels[level];
+    }
+    
+    localStorage.setItem('compactLevel', level.toString());
+  }
+  
+  /**
+   * Восстанавливает уровень сжатия из localStorage
+   */
+  restoreCompactLevel() {
+    const level = parseInt(localStorage.getItem('compactLevel') || '0');
+    if (level > 0) {
+      const table = document.querySelector('.data-table');
+      const btn = document.getElementById('compactViewBtn');
+      const btnText = btn?.querySelector('.btn-text');
+      
+      if (table) {
+        table.classList.add(`compact-view-${level}`);
+      }
+      btn?.classList.add('active');
+      
+      const labels = ['Стандарт', 'Компактно 1', 'Компактно 2', 'Мини'];
+      if (btnText) {
+        btnText.textContent = labels[level];
+      }
     }
   }
 
