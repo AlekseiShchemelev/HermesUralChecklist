@@ -2,52 +2,182 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Google Script Test</title>
+  <title>Google Script Diagnostic</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+    h1 { color: #333; }
+    h2 { color: #666; margin-top: 30px; }
+    .test { background: #f5f5f5; padding: 15px; margin: 10px 0; border-radius: 5px; }
+    .success { color: green; }
+    .error { color: red; }
+    .warning { color: orange; }
+    pre { background: #333; color: #0f0; padding: 10px; overflow-x: auto; }
+    code { background: #eee; padding: 2px 5px; }
+    a { color: #0066cc; }
+    button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+  </style>
 </head>
 <body>
-  <h1>Google Script Diagnostic</h1>
-  <div id="output"></div>
+  <h1>🔧 Google Script Diagnostic</h1>
   
+  <div class="test">
+    <h2>Текущий URL:</h2>
+    <code id="scriptUrl"></code>
+    <p><small>Если URL неверный — обновите его в config.js</small></p>
+  </div>
+
+  <div class="test">
+    <h2>Тест 1: Прямая ссылка</h2>
+    <a id="directLink" href="#" target="_blank">Открыть в новой вкладке</a>
+    <p>Должен показать JSON с данными</p>
+  </div>
+
+  <div class="test">
+    <h2>Тест 2: JSONP с деталями</h2>
+    <button onclick="testJSONP()">Запустить JSONP тест</button>
+    <div id="jsonpResult"></div>
+  </div>
+
+  <div class="test">
+    <h2>Тест 3: Fetch с CORS</h2>
+    <button onclick="testFetchCORS()">Запустить Fetch CORS</button>
+    <div id="fetchCorsResult"></div>
+  </div>
+
+  <div class="test">
+    <h2>Тест 4: Fetch no-cors</h2>
+    <button onclick="testFetchNoCors()">Запустить Fetch no-cors</button>
+    <div id="fetchNoCorsResult"></div>
+  </div>
+
+  <div class="test">
+    <h2>Тест 5: Image тег (для проверки доступности)</h2>
+    <button onclick="testImage()">Запустить Image тест</button>
+    <div id="imageResult"></div>
+  </div>
+
+  <div class="test">
+    <h2>Решения:</h2>
+    <ol>
+      <li>Проверьте что скрипт опубликован: <strong>Deploy → Manage deployments</strong></li>
+      <li>Убедитесь что статус <strong>Active</strong></li>
+      <li>Проверьте права доступа: <strong>Execute as: Me</strong>, <strong>Who has access: Anyone</strong></li>
+      <li>Попробуйте создать <strong>New deployment</strong> (не Update!)</li>
+      <li>Проверьте консоль браузера (F12) на наличие ошибок CORS</li>
+    </ol>
+  </div>
+
   <script>
+    // ЗАМЕНИТЕ НА ВАШ URL
     const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwK7OIqM7-NXaaEHi7TjPRX77UlEZfmGdtF3hG4omttQqWSxMcrHX8Oku9S1Ucg2sf8OQ/exec';
-    const output = document.getElementById('output');
     
-    function log(msg) {
-      output.innerHTML += '<p>' + msg + '</p>';
-      console.log(msg);
+    document.getElementById('scriptUrl').textContent = SCRIPT_URL;
+    document.getElementById('directLink').href = SCRIPT_URL + '?action=get';
+    
+    function log(id, msg, type = 'info') {
+      const div = document.getElementById(id);
+      const p = document.createElement('p');
+      p.className = type;
+      p.innerHTML = msg;
+      div.appendChild(p);
     }
     
-    // Test 1: Direct link
-    log('<h2>Test 1: Direct Browser Link</h2>');
-    log('<a href="' + SCRIPT_URL + '?action=get" target="_blank">Click to test in new tab</a>');
-    log('If the link works, you should see JSON response');
+    function testJSONP() {
+      const resultId = 'jsonpResult';
+      document.getElementById(resultId).innerHTML = '';
+      log(resultId, 'Создание скрипт тега...', 'info');
+      
+      const callbackName = 'test_cb_' + Date.now();
+      const url = SCRIPT_URL + '?action=get&callback=' + callbackName;
+      
+      log(resultId, 'URL: ' + url, 'info');
+      
+      window[callbackName] = function(response) {
+        log(resultId, '✅ CALLBACK ВЫЗВАН!', 'success');
+        log(resultId, 'Ответ: ' + JSON.stringify(response).substring(0, 200), 'success');
+      };
+      
+      const script = document.createElement('script');
+      script.src = url;
+      
+      script.onload = function() {
+        log(resultId, 'Скрипт загружен (onload)', 'success');
+      };
+      
+      script.onerror = function(e) {
+        log(resultId, '❌ Ошибка загрузки скрипта!', 'error');
+        log(resultId, 'Возможные причины:', 'warning');
+        log(resultId, '1. Неправильный URL скрипта', 'warning');
+        log(resultId, '2. Скрипт не опубликован (Deploy)', 'warning');
+        log(resultId, '3. Ошибка в коде скрипта (syntax error)', 'warning');
+        log(resultId, '4. Скрипт вернул HTTP ошибку (404, 500)', 'warning');
+      };
+      
+      document.head.appendChild(script);
+      
+      // Таймаут на случай если callback не вызван
+      setTimeout(function() {
+        if (window[callbackName]) {
+          log(resultId, '⚠️ Callback не был вызван в течение 10 секунд', 'warning');
+        }
+      }, 10000);
+    }
     
-    // Test 2: JSONP
-    log('<h2>Test 2: JSONP</h2>');
-    const callbackName = 'testCallback_' + Date.now();
-    window[callbackName] = function(response) {
-      log('JSONP SUCCESS: ' + JSON.stringify(response).substring(0, 200));
-    };
+    async function testFetchCORS() {
+      const resultId = 'fetchCorsResult';
+      document.getElementById(resultId).innerHTML = '';
+      log(resultId, 'Отправка fetch с CORS...', 'info');
+      
+      try {
+        const response = await fetch(SCRIPT_URL + '?action=get');
+        log(resultId, 'Статус: ' + response.status, 'success');
+        log(resultId, 'Заголовки: ' + JSON.stringify([...response.headers]), 'info');
+        const text = await response.text();
+        log(resultId, 'Ответ (первые 200 символов): ' + text.substring(0, 200), 'success');
+      } catch (e) {
+        log(resultId, '❌ Ошибка: ' + e.message, 'error');
+        log(resultId, 'Google Script НЕ поддерживает CORS для fetch', 'warning');
+        log(resultId, 'Используйте JSONP вместо fetch', 'warning');
+      }
+    }
     
-    const script = document.createElement('script');
-    script.src = SCRIPT_URL + '?action=get&callback=' + callbackName;
-    script.onerror = function() {
-      log('JSONP FAILED: Script error');
-    };
-    document.head.appendChild(script);
+    async function testFetchNoCors() {
+      const resultId = 'fetchNoCorsResult';
+      document.getElementById(resultId).innerHTML = '';
+      log(resultId, 'Отправка fetch с no-cors...', 'info');
+      
+      try {
+        const response = await fetch(SCRIPT_URL + '?action=get', { mode: 'no-cors' });
+        log(resultId, 'Тип ответа: ' + response.type, 'info');
+        log(resultId, 'Статус: ' + response.status, 'info');
+        log(resultId, 'no-cors возвращает "opaque" ответ — содержимое недоступно', 'warning');
+        log(resultId, 'Это нормально для Google Script', 'info');
+      } catch (e) {
+        log(resultId, '❌ Ошибка: ' + e.message, 'error');
+      }
+    }
     
-    // Test 3: Fetch no-cors
-    log('<h2>Test 3: Fetch no-cors</h2>');
-    fetch(SCRIPT_URL + '?action=get', { mode: 'no-cors' })
-      .then(() => log('Fetch no-cors: Request sent (opaque response)'))
-      .catch(e => log('Fetch no-cors failed: ' + e));
-    
-    // Test 4: Fetch with cors
-    log('<h2>Test 4: Fetch with CORS</h2>');
-    fetch(SCRIPT_URL + '?action=get')
-      .then(r => r.text())
-      .then(t => log('Fetch CORS SUCCESS: ' + t.substring(0, 200)))
-      .catch(e => log('Fetch CORS FAILED: ' + e));
+    function testImage() {
+      const resultId = 'imageResult';
+      document.getElementById(resultId).innerHTML = '';
+      log(resultId, 'Проверка через Image тег...', 'info');
+      
+      const img = new Image();
+      const startTime = Date.now();
+      
+      img.onload = function() {
+        log(resultId, '✅ Image загружена (' + (Date.now() - startTime) + 'ms)', 'success');
+        log(resultId, 'Сервер отвечает (но вернул не-изображение)', 'warning');
+      };
+      
+      img.onerror = function() {
+        log(resultId, '❌ Image ошибка (' + (Date.now() - startTime) + 'ms)', 'error');
+        log(resultId, 'Скорее всего скрипт вернул JSON вместо изображения', 'warning');
+        log(resultId, 'Это нормально — проверьте прямую ссылку (Тест 1)', 'info');
+      };
+      
+      img.src = SCRIPT_URL + '?action=get&t=' + Date.now();
+    }
   </script>
 </body>
 </html>
