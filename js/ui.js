@@ -21,6 +21,52 @@ const templateCache = new Map();
 
 export class UI {
   /**
+   * Показывает индикатор загрузки на кнопке
+   */
+  static setButtonLoading(button, loading = true, text = 'Сохранение...') {
+    if (!button) return;
+    
+    if (loading) {
+      button.dataset.originalText = button.textContent;
+      button.disabled = true;
+      button.innerHTML = `<span class="spinner"></span> ${text}`;
+    } else {
+      button.disabled = false;
+      button.textContent = button.dataset.originalText || 'Сохранить';
+      delete button.dataset.originalText;
+    }
+  }
+  
+  /**
+   * Показывает оверлей загрузки на элементе
+   */
+  static showLoadingOverlay(element, text = 'Загрузка...') {
+    if (!element) return;
+    
+    const overlay = document.createElement('div');
+    overlay.className = 'loading-overlay';
+    overlay.innerHTML = `
+      <div class="loading-content">
+        <span class="spinner"></span>
+        <span>${text}</span>
+      </div>
+    `;
+    
+    element.style.position = 'relative';
+    element.appendChild(overlay);
+    return overlay;
+  }
+  
+  /**
+   * Скрывает оверлей загрузки
+   */
+  static hideLoadingOverlay(element) {
+    if (!element) return;
+    const overlay = element.querySelector('.loading-overlay');
+    if (overlay) overlay.remove();
+  }
+  
+  /**
    * Показывает статусное сообщение
    */
   static showStatus(message, type = 'info', container = null) {

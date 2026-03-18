@@ -208,6 +208,9 @@ class App {
         return;
       }
       
+      // Показываем индикатор загрузки
+      UI.setButtonLoading(submitBtn, true, 'Сохранение...');
+      
       try {
         const result = await this.storage.save(data);
         
@@ -225,7 +228,7 @@ class App {
       } catch (error) {
         UI.showStatus('Ошибка: ' + error.message, 'error');
       } finally {
-        submitBtn.disabled = false;
+        UI.setButtonLoading(submitBtn, false);
         this.isSubmitting = false;
       }
     });
@@ -347,7 +350,7 @@ class App {
     }
     
     const displayData = allData.slice(startIndex, endIndex);
-    const reversedData = displayData.reverse();
+    const reversedData = [...displayData].reverse(); // Создаём копию перед reverse
     
     container.innerHTML = UI.createDataTable(reversedData, {
       editable: true,
@@ -471,6 +474,12 @@ class App {
     }
     
     const isEdit = !!data.id;
+    const saveBtn = document.getElementById('modalSaveBtn');
+    const modalBody = document.querySelector('.modal-body');
+    
+    // Показываем индикатор загрузки
+    if (saveBtn) UI.setButtonLoading(saveBtn, true, 'Сохранение...');
+    const overlay = UI.showLoadingOverlay(modalBody, 'Сохранение данных...');
     
     try {
       const result = await this.storage.save(data);
@@ -484,7 +493,8 @@ class App {
       // Инвалидируем кэши
       await indexedCache.clear();
     } catch (error) {
-      UI.closeModal();
+      UI.hideLoadingOverlay(modalBody);
+      if (saveBtn) UI.setButtonLoading(saveBtn, false);
       UI.showStatus('Ошибка сохранения: ' + error.message, 'error', document.getElementById('viewStatus'));
     }
   }
@@ -493,12 +503,16 @@ class App {
     const confirmed = await UI.confirm('Вы уверены, что хотите удалить эту запись?');
     
     if (confirmed) {
+      const container = document.getElementById('tableContainer');
+      const overlay = UI.showLoadingOverlay(container, 'Удаление записи...');
+      
       try {
         await this.storage.delete(id);
         await this.loadData();
         UI.showStatus('Запись удалена', 'success', document.getElementById('viewStatus'));
         await indexedCache.clear();
       } catch (error) {
+        UI.hideLoadingOverlay(container);
         alert('Ошибка удаления: ' + error.message);
       }
     }

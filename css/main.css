@@ -2,6 +2,59 @@
    СМЕННЫЙ ОТЧЁТ - ОПТИМИЗИРОВАННЫЙ
    ======================================== */
 
+/* Спиннер загрузки */
+.spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+  vertical-align: middle;
+  margin-right: 8px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Оверлей загрузки */
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  border-radius: inherit;
+}
+
+.loading-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+}
+
+.loading-content .spinner {
+  width: 24px;
+  height: 24px;
+  border-width: 3px;
+  color: var(--primary);
+}
+
+/* Отключенная кнопка */
+.btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
 /* Отключаем ненужные функции для производительности */
 html {
   scroll-behavior: smooth;
@@ -911,36 +964,37 @@ table tfoot th {
     margin-right: 4px;
   }
   
-  /* Уменьшаем отступы в фильтрах */
+  /* Уменьшаем отступы в фильтрах - агрессивно */
   .filters {
-    padding: 12px;
-    gap: 4px;
-    margin-bottom: 16px;
+    padding: 12px !important;
+    gap: 2px !important;
+    margin-bottom: 16px !important;
   }
   
-  .filter-group {
-    margin-bottom: 8px;
+  .filters .filter-group {
+    margin-bottom: 4px !important;
+    margin-top: 0 !important;
   }
   
-  .filter-group:last-child {
-    margin-bottom: 0;
+  .filters .filter-group:last-child {
+    margin-bottom: 0 !important;
   }
   
-  .filter-group label {
-    margin-bottom: 4px;
+  .filters .filter-group label {
+    margin-bottom: 2px !important;
+    margin-top: 0 !important;
   }
   
   /* Уменьшаем отступы в отчетах */
   .report-section {
-    padding: 16px;
-    margin-bottom: 20px;
+    padding: 16px !important;
+    margin-bottom: 20px !important;
   }
   
   .report-section h3 {
-    margin-bottom: 16px;
-    padding-bottom: 8px;
+    margin-bottom: 16px !important;
+    padding-bottom: 8px !important;
   }
-}
 
 /* ========================================
    PRINT STYLES
