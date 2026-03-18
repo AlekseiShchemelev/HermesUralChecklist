@@ -832,8 +832,16 @@ table tfoot th {
     flex-direction: column;
     align-items: stretch;
     padding: 16px;
-    gap: 14px;
+    gap: 4px;
     margin-bottom: 20px;
+  }
+  
+  .filter-group {
+    margin-bottom: 8px;
+  }
+  
+  .filter-group:last-child {
+    margin-bottom: 0;
   }
   
   .report-section {
@@ -906,8 +914,20 @@ table tfoot th {
   /* Уменьшаем отступы в фильтрах */
   .filters {
     padding: 12px;
-    gap: 12px;
+    gap: 4px;
     margin-bottom: 16px;
+  }
+  
+  .filter-group {
+    margin-bottom: 8px;
+  }
+  
+  .filter-group:last-child {
+    margin-bottom: 0;
+  }
+  
+  .filter-group label {
+    margin-bottom: 4px;
   }
   
   /* Уменьшаем отступы в отчетах */

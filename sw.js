@@ -3,7 +3,7 @@
  * Инкрементируй VERSION при каждом деплое!
  */
 
-const VERSION = "13"; // <-- МЕНЯЙТЕ ЭТО ЧИСЛО ПРИ КАЖДОМ ОБНОВЛЕНИИ
+const VERSION = "15"; // <-- МЕНЯЙТЕ ЭТО ЧИСЛО ПРИ КАЖДОМ ОБНОВЛЕНИИ
 const CACHE_NAME = `checklist-v${VERSION}`;
 
 // Статические ресурсы для кэширования
@@ -11,12 +11,12 @@ const STATIC_ASSETS = [
   "./",
   "./index.html",
   "./css/main.css",
-  "./js/app.js?v=13",
-  "./js/config.js?v=13",
-  "./js/data.js?v=13",
-  "./js/storage.js?v=13",
-  "./js/ui.js?v=13",
-  "./js/cache.js?v=13",
+  "./js/app.js?v=15",
+  "./js/config.js?v=15",
+  "./js/data.js?v=15",
+  "./js/storage.js?v=15",
+  "./js/ui.js?v=15",
+  "./js/cache.js?v=15",
 ];
 
 // Внешние ресурсы (CDN)
@@ -167,20 +167,14 @@ self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
+  // Пропускаем все запросы к другим доменам (github, google и т.д.)
+  if (url.origin !== self.location.origin) {
+    return; // Не перехватываем внешние запросы
+  }
+
   // Пропускаем некоторые запросы
   if (request.method !== "GET") return;
   if (url.protocol === "chrome-extension:") return;
-  
-  // Пропускаем JSONP-запросы (script теги с callback)
-  // Они загружаются браузером напрямую, без SW
-  if (url.searchParams.has('callback')) {
-    return; // Не перехватываем JSONP
-  }
-
-  // Пропускаем все запросы к Google Script (JSONP работает напрямую)
-  if (url.href.includes("script.google.com")) {
-    return; // Не перехватываем API запросы
-  }
 
   // Статические ресурсы приложения (без query-параметров)
   const pathnameWithoutQuery = url.pathname.replace(/^\//, '');
@@ -190,14 +184,8 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Изображения
-  if (request.destination === "image") {
-    event.respondWith(strategies.media(request));
-    return;
-  }
-
-  // Остальные запросы - пробуем сеть, fallback на кэш
-  event.respondWith(fetch(request).catch(() => caches.match(request)));
+  // Остальные запросы к нашему домену - пробуем сеть
+  // Не используем fallback на кэш для неизвестных ресурсов
 });
 
 // Обработка сообщений от клиента
