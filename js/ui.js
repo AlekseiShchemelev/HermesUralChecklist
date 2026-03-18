@@ -393,9 +393,22 @@ export class UI {
     const formattedMessage = escapeHtml(String(message)).replace(/\n/g, '<br>');
     container.innerHTML = `
       <div class="error-message" style="text-align: left; font-family: monospace; white-space: pre-wrap;">
-        <p>⚠️ Ошибка соединения с сервером</p>
+        <p>⚠️ Ошибка соединения с сервером Google Script</p>
         <hr style="margin: 10px 0; border: none; border-top: 1px solid #f5c6cb;">
         <p>${formattedMessage}</p>
+        <hr style="margin: 10px 0; border: none; border-top: 1px solid #f5c6cb;">
+        <p><strong>Возможные решения:</strong></p>
+        <ol style="margin-left: 20px; margin-top: 5px;">
+          <li>Проверьте подключение к интернету</li>
+          <li>Убедитесь что Google Script развёрнут:
+            <br>• Откройте <a href="test-script.html" target="_blank">test-script.html</a> для диагностики
+            <br>• Или прочитайте <a href="DEPLOYMENT_FIX.md" target="_blank">инструкцию</a>
+          </li>
+          <li>Попробуйте создать новый deployment в Google Apps Script</li>
+        </ol>
+        <p style="margin-top: 10px; font-size: 12px; color: #666;">
+          Приложение работает в offline-режиме. Данные сохраняются локально.
+        </p>
       </div>
     `;
   }

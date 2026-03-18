@@ -83,40 +83,43 @@ export class Storage {
   }
   
   /**
-   * JSONP загрузка - надёжный метод для Google Script
+   * JSONP загрузка с fetch fallback
    */
-  loadJSONP() {
+  async loadJSONP() {
+    // Сначала пробуем fetch с no-cors (для проверки доступности)
+    try {
+      console.log('[Storage] Trying fetch no-cors...');
+      await fetch(`${CONFIG.appsScriptUrl}?action=get`, {
+        method: 'GET',
+        mode: 'no-cors'
+      });
+      console.log('[Storage] Fetch no-cors sent (opaque response)');
+    } catch (e) {
+      console.warn('[Storage] Fetch no-cors failed:', e);
+    }
+    
+    // Пробуем JSONP
     return new Promise((resolve, reject) => {
       const callbackName = 'gsCallback_' + Date.now();
-      // Валидируем URL
       if (!CONFIG.appsScriptUrl || !CONFIG.appsScriptUrl.includes('script.google.com')) {
         reject(new Error('Invalid Google Script URL'));
         return;
       }
-      const url = `${CONFIG.appsScriptUrl}?action=get&callback=${callbackName}`;
       
-      // DEBUG
-      console.log('[JSONP] Loading from URL:', url);
+      const url = `${CONFIG.appsScriptUrl}?action=get&callback=${callbackName}`;
+      console.log('[JSONP] Loading:', url);
       
       const timeout = setTimeout(() => {
         cleanup();
-        console.error('[JSONP] Timeout after 20s');
-        reject(new Error('Timeout'));
+        reject(new Error('Timeout - script not loaded in 20s'));
       }, 20000);
       
       window[callbackName] = (response) => {
         clearTimeout(timeout);
         cleanup();
+        console.log('[JSONP] Success:', response?.result);
         
-        // DEBUG
-        console.log('[JSONP] Callback received:', response);
-        
-        if (!response) {
-          reject(new Error('Empty response'));
-          return;
-        }
-        
-        if (response.result === 'success' && Array.isArray(response.data)) {
+        if (response?.result === 'success' && Array.isArray(response.data)) {
           this.data = response.data;
           this._saveToCache(response.data);
           resolve(response.data);
@@ -136,8 +139,9 @@ export class Storage {
       script.onerror = (err) => {
         clearTimeout(timeout);
         cleanup();
-        console.error('[JSONP] Script load error:', err);
-        reject(new Error('Failed to load'));
+        console.error('[JSONP] Script error. Check if Google Script is deployed and accessible.');
+        console.error('[JSONP] URL:', url);
+        reject(new Error('Script load failed - check deployment'));
       };
       
       document.head.appendChild(script);

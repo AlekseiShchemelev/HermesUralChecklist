@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Google Script Test</title>
+</head>
+<body>
+  <h1>Google Script Diagnostic</h1>
+  <div id="output"></div>
+  
+  <script>
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwK7OIqM7-NXaaEHi7TjPRX77UlEZfmGdtF3hG4omttQqWSxMcrHX8Oku9S1Ucg2sf8OQ/exec';
+    const output = document.getElementById('output');
+    
+    function log(msg) {
+      output.innerHTML += '<p>' + msg + '</p>';
+      console.log(msg);
+    }
+    
+    // Test 1: Direct link
+    log('<h2>Test 1: Direct Browser Link</h2>');
+    log('<a href="' + SCRIPT_URL + '?action=get" target="_blank">Click to test in new tab</a>');
+    log('If the link works, you should see JSON response');
+    
+    // Test 2: JSONP
+    log('<h2>Test 2: JSONP</h2>');
+    const callbackName = 'testCallback_' + Date.now();
+    window[callbackName] = function(response) {
+      log('JSONP SUCCESS: ' + JSON.stringify(response).substring(0, 200));
+    };
+    
+    const script = document.createElement('script');
+    script.src = SCRIPT_URL + '?action=get&callback=' + callbackName;
+    script.onerror = function() {
+      log('JSONP FAILED: Script error');
+    };
+    document.head.appendChild(script);
+    
+    // Test 3: Fetch no-cors
+    log('<h2>Test 3: Fetch no-cors</h2>');
+    fetch(SCRIPT_URL + '?action=get', { mode: 'no-cors' })
+      .then(() => log('Fetch no-cors: Request sent (opaque response)'))
+      .catch(e => log('Fetch no-cors failed: ' + e));
+    
+    // Test 4: Fetch with cors
+    log('<h2>Test 4: Fetch with CORS</h2>');
+    fetch(SCRIPT_URL + '?action=get')
+      .then(r => r.text())
+      .then(t => log('Fetch CORS SUCCESS: ' + t.substring(0, 200)))
+      .catch(e => log('Fetch CORS FAILED: ' + e));
+  </script>
+</body>
+</html>
