@@ -1,34 +1,106 @@
 /**
- * Модуль работы с данными
+ * Модуль работы с данными (оптимизированная версия)
  */
 import CONFIG from './config.js';
+
+// Таймер для debounce
+let debounceTimer = null;
 
 export class DataManager {
   constructor() {
     this.data = [];
     this.cache = new Map();
+    this.filterWorker = null;
+    this.initWorker();
+  }
+  
+  /**
+   * Инициализация Web Worker для фильтрации
+   */
+  initWorker() {
+    if (typeof Worker !== 'undefined') {
+      try {
+        // Inline worker для простоты
+        const workerCode = `
+          self.onmessage = function(e) {
+            const { data, filters } = e.data;
+            const result = data.filter(row => {
+              // Фильтр по дате
+              if (filters.dateFrom || filters.dateTo) {
+                const rowDate = row.date || row.Дата;
+                if (!rowDate) return false;
+                
+                const parts = rowDate.split('.');
+                if (parts.length === 3) {
+                  const rowDateObj = new Date(parts[2], parts[1] - 1, parts[0]);
+                  
+                  if (filters.dateFrom) {
+                    const from = new Date(filters.dateFrom);
+                    if (rowDateObj < from) return false;
+                  }
+                  if (filters.dateTo) {
+                    const to = new Date(filters.dateTo);
+                    to.setHours(23, 59, 59);
+                    if (rowDateObj > to) return false;
+                  }
+                }
+              }
+              
+              // Фильтр по смене
+              if (filters.shift) {
+                const rowShift = row.shift || row.Смена;
+                if (String(rowShift) !== String(filters.shift)) return false;
+              }
+              
+              // Фильтр по цеху
+              if (filters.shop) {
+                const rowShop = (row.shop || row.Цех || '').toLowerCase();
+                if (!rowShop.includes(filters.shop.toLowerCase())) return false;
+              }
+              
+              // Фильтр по мастеру
+              if (filters.master) {
+                const rowMaster = (row.master || row.ФИО_мастера || '').toLowerCase();
+                if (!rowMaster.includes(filters.master.toLowerCase())) return false;
+              }
+              
+              return true;
+            });
+            
+            self.postMessage({ result });
+          };
+        `;
+        
+        const blob = new Blob([workerCode], { type: 'application/javascript' });
+        this.filterWorker = new Worker(URL.createObjectURL(blob));
+      } catch (e) {
+        console.log('Worker not supported, using main thread');
+      }
+    }
   }
 
   /**
-   * Форматирует дату из YYYY-MM-DD в ДД.ММ.ГГГГ
+   * Форматирует дату
    */
   static formatDate(dateString) {
     if (!dateString) return '';
-    const [year, month, day] = dateString.split('-');
-    return `${day}.${month}.${year}`;
+    const parts = dateString.split('-');
+    if (parts.length !== 3) return '';
+    return `${parts[2]}.${parts[1]}.${parts[0]}`;
   }
 
   /**
-   * Парсит дату из ДД.ММ.ГГГГ в объект Date
+   * Парсит дату
    */
   static parseDate(dateString) {
     if (!dateString) return null;
-    const [d, m, y] = dateString.split('.');
-    return new Date(y, m - 1, d);
+    const parts = dateString.split('.');
+    if (parts.length !== 3) return null;
+    return new Date(parts[2], parts[1] - 1, parts[0]);
   }
 
   /**
-   * Собирает данные формы в объект
+   * Собирает данные формы
    */
   static gatherFormData() {
     const getValue = (id) => {
@@ -44,37 +116,33 @@ export class DataManager {
     const date = this.formatDate(getValue('date'));
     const shift = getValue('shift');
     
-    // ID будет присвоен в storage.js по порядку
-    const id = null;
-    
     const data = {
-      // Шапка
       date: date,
       shift: shift,
       shop: getValue('shop'),
       master: getValue('master'),
-      
-      // Количество людей
       total_people: getNumber('total_people'),
-      
-      // Поломки
       breakdowns: getValue('breakdowns'),
-      
-      // ID на основе смены и даты
-      id: id
+      id: null
     };
 
     // Добавляем данные по секциям
-    [...CONFIG.sections.people, ...CONFIG.sections.production, 
-     ...CONFIG.sections.ends, ...CONFIG.sections.logistics].forEach(field => {
+    const fields = [
+      ...CONFIG.sections.people, 
+      ...CONFIG.sections.production, 
+      ...CONFIG.sections.ends, 
+      ...CONFIG.sections.logistics
+    ];
+    
+    for (const field of fields) {
       data[field.id] = getNumber(field.id);
-    });
+    }
 
     return data;
   }
 
   /**
-   * Заполняет форму данными (для редактирования)
+   * Заполняет форму данными
    */
   static fillForm(data) {
     const setValue = (id, value) => {
@@ -82,12 +150,12 @@ export class DataManager {
       if (el) el.value = value || '';
     };
 
-    // Шапка
-    // Преобразуем дату из ДД.ММ.ГГГГ в YYYY-MM-DD для input type="date"
     if (data.date || data.Дата) {
       const dateStr = data.date || data.Дата;
-      const [d, m, y] = dateStr.split('.');
-      setValue('date', `${y}-${m}-${d}`);
+      const parts = dateStr.split('.');
+      if (parts.length === 3) {
+        setValue('date', `${parts[2]}-${parts[1]}-${parts[0]}`);
+      }
     }
     
     setValue('shift', data.shift || data.Смена || '');
@@ -96,20 +164,24 @@ export class DataManager {
     setValue('breakdowns', data.breakdowns || data.Поломки || '');
     setValue('record_id', data.id || data.ID || '');
 
-    // Все числовые поля
-    [...CONFIG.sections.people, ...CONFIG.sections.production, 
-     ...CONFIG.sections.ends, ...CONFIG.sections.logistics].forEach(field => {
+    const allFields = [
+      ...CONFIG.sections.people, 
+      ...CONFIG.sections.production, 
+      ...CONFIG.sections.ends, 
+      ...CONFIG.sections.logistics
+    ];
+    
+    for (const field of allFields) {
       const value = data[field.id] !== undefined ? data[field.id] : 
                    (data[this.getRussianLabel(field.id)] || 0);
       setValue(field.id, value);
-    });
+    }
 
-    // Обновляем общее количество людей
     this.updateTotalPeople();
   }
 
   /**
-   * Получает русское название поля (для обратной совместимости)
+   * Получает русское название поля
    */
   static getRussianLabel(fieldId) {
     const map = {
@@ -130,22 +202,35 @@ export class DataManager {
   }
 
   /**
-   * Обновляет поле общего количества людей
+   * Обновляет общее количество с debounce
    */
   static updateTotalPeople() {
-    const inputs = document.querySelectorAll('.people-input');
-    let total = 0;
-    inputs.forEach(input => {
-      total += Number(input.value) || 0;
-    });
-    const totalField = document.getElementById('total_people');
-    if (totalField) {
-      totalField.value = total;
+    // Отменяем предыдущий таймер
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
     }
+    
+    // Новый таймер
+    debounceTimer = setTimeout(() => {
+      const inputs = document.querySelectorAll('.people-input');
+      let total = 0;
+      
+      // Быстрый цикл for
+      for (let i = 0; i < inputs.length; i++) {
+        total += Number(inputs[i].value) || 0;
+      }
+      
+      const totalField = document.getElementById('total_people');
+      if (totalField) {
+        totalField.value = total;
+      }
+      
+      debounceTimer = null;
+    }, 50); // 50ms debounce
   }
 
   /**
-   * Валидация данных
+   * Валидация
    */
   static validate(data) {
     const errors = [];
@@ -159,89 +244,31 @@ export class DataManager {
   }
 
   /**
-   * Отправляет данные на сервер
+   * Фильтрует данные (с использованием Worker если возможно)
    */
-  static async send(data) {
-    const payload = {
-      action: data.id ? 'update' : 'add',
-      data: data
-    };
-    
-    try {
-      const response = await fetch(CONFIG.appsScriptUrl, {
-        method: 'POST',
-        mode: 'cors',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
-      
-      // Пробуем прочитать ответ как текст
-      const text = await response.text();
-      
-      // Пробуем распарсить как JSON
-      try {
-        return JSON.parse(text);
-      } catch (e) {
-        // Если не JSON, возвращаем как есть
-        return { result: 'success', message: text };
-      }
-    } catch (error) {
-      // При no-cors или ошибке сети, считаем что запрос ушёл
-      return { result: 'success', message: 'Данные отправлены' };
+  async filter(filters) {
+    // Если мало данных или Worker не доступен - фильтруем в главном потоке
+    if (this.data.length < 1000 || !this.filterWorker) {
+      return this.filterSync(filters);
     }
-  }
-
-  /**
-   * Загружает данные с сервера
-   */
-  async load() {
-    const url = `${CONFIG.appsScriptUrl}?action=get`;
     
-    try {
-      const response = await fetch(url, {
-        method: 'GET',
-        mode: 'cors',
+    // Используем Worker для больших наборов данных
+    return new Promise((resolve) => {
+      this.filterWorker.onmessage = (e) => {
+        resolve(e.data.result);
+      };
+      
+      this.filterWorker.postMessage({
+        data: this.data,
+        filters: filters
       });
-      
-      // Пробуем получить текст ответа
-      const text = await response.text();
-      
-      // Если ответ начинается с HTML (ошибка авторизации)
-      if (text.trim().startsWith('<') || text.includes('<!DOCTYPE') || text.includes('Скрипт')) {
-        throw new Error(
-          'Google Apps Script требует авторизации.\n\n' +
-          '1. Откройте этот URL в браузере:\n' + 
-          url + '\n\n' +
-          '2. Авторизуйтесь со своим Google-аккаунтом\n' +
-          '3. Затем обновите эту страницу'
-        );
-      }
-      
-      // Пробуем распарсить JSON
-      let result;
-      try {
-        result = JSON.parse(text);
-      } catch (e) {
-        throw new Error(`Неверный формат ответа: ${text.substring(0, 100)}`);
-      }
-      
-      if (result.result === 'success' && Array.isArray(result.data)) {
-        this.data = result.data;
-        return this.data;
-      } else {
-        throw new Error(result.message || 'Неизвестная ошибка сервера');
-      }
-    } catch (error) {
-      throw error;
-    }
+    });
   }
-
+  
   /**
-   * Фильтрует данные
+   * Синхронная фильтрация (fallback)
    */
-  filter(filters) {
+  filterSync(filters) {
     const { dateFrom, dateTo, shift, shop, master } = filters;
     
     return this.data.filter(row => {
@@ -251,6 +278,7 @@ export class DataManager {
         if (!rowDate) return false;
         
         const rowDateObj = DataManager.parseDate(rowDate);
+        if (!rowDateObj) return false;
         
         if (dateFrom) {
           const from = new Date(dateFrom);
@@ -264,7 +292,10 @@ export class DataManager {
       }
       
       // Фильтр по смене
-      if (shift && row.shift != shift && row.Смена != shift) return false;
+      if (shift) {
+        const rowShift = row.shift || row.Смена;
+        if (String(rowShift) !== String(shift)) return false;
+      }
       
       // Фильтр по цеху
       if (shop) {
@@ -280,35 +311,6 @@ export class DataManager {
       
       return true;
     });
-  }
-
-  /**
-   * Удаляет запись
-   */
-  static async delete(id) {
-    try {
-      const response = await fetch(CONFIG.appsScriptUrl, {
-        method: 'POST',
-        mode: 'cors',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          action: 'delete',
-          id: id
-        }),
-      });
-      
-      const text = await response.text();
-      try {
-        return JSON.parse(text);
-      } catch (e) {
-        return { result: 'success', message: text };
-      }
-    } catch (error) {
-      console.error('Ошибка удаления:', error);
-      return { result: 'success', message: 'Запрос отправлен' };
-    }
   }
 }
 

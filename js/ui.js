@@ -1,18 +1,25 @@
 /**
- * Модуль UI компонентов
+ * Модуль UI компонентов (оптимизированная версия)
  */
 import CONFIG from './config.js';
 
-export class UI {
-  /**
-   * Экранирует HTML для безопасной вставки
-   */
-  static escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
+// Быстрое экранирование HTML без создания DOM
+const escapeHtml = (() => {
+  const div = document.createElement('div');
+  const text = document.createTextNode('');
+  div.appendChild(text);
+  
+  return (str) => {
+    if (str == null) return '';
+    text.nodeValue = str;
     return div.innerHTML;
-  }
+  };
+})();
 
+// Кэш для шаблонов
+const templateCache = new Map();
+
+export class UI {
   /**
    * Показывает статусное сообщение
    */
@@ -23,7 +30,7 @@ export class UI {
     target.className = `status status-${type}`;
     
     const icon = type === 'success' ? '✓' : type === 'error' ? '✗' : 'ℹ';
-    target.innerHTML = `<span>${icon}</span> ${this.escapeHtml(String(message))}`;
+    target.innerHTML = `<span>${icon}</span> ${escapeHtml(String(message))}`;
     
     // Автоматически скрываем успешные сообщения
     if (type === 'success') {
@@ -35,114 +42,95 @@ export class UI {
   }
 
   /**
-   * Создаёт таблицу данных
+   * Создаёт таблицу данных (оптимизированная версия с HTML строками)
    */
   static createDataTable(data, options = {}) {
     // Проверка входных данных
     if (!Array.isArray(data)) {
-      return `<div class="empty-state">
-        <div class="empty-state-icon">⚠️</div>
-        <p>Некорректные данные</p>
-      </div>`;
+      return `<div class="empty-state"><div class="empty-state-icon">⚠️</div><p>Некорректные данные</p></div>`;
     }
     
     if (data.length === 0) {
-      return `<div class="empty-state">
-        <div class="empty-state-icon">📭</div>
-        <p>Нет данных для отображения</p>
-      </div>`;
+      return `<div class="empty-state"><div class="empty-state-icon">📭</div><p>Нет данных для отображения</p></div>`;
     }
     
-    // Проверка структуры данных
     if (!data[0] || typeof data[0] !== 'object') {
-      return `<div class="empty-state">
-        <div class="empty-state-icon">⚠️</div>
-        <p>Некорректная структура данных</p>
-      </div>`;
+      return `<div class="empty-state"><div class="empty-state-icon">⚠️</div><p>Некорректная структура данных</p></div>`;
     }
 
-    const { onEdit, onDelete, editable = true } = options;
+    const { editable = true } = options;
     const headers = Object.keys(data[0]);
+    const displayHeaders = headers.filter(h => h === 'id' || h === 'ID' || !['__proto__'].includes(h));
     
-    // Оставляем ID для отображения, но фильтруем другие служебные поля
-    const displayHeaders = headers.filter(h => h === 'id' || h === 'ID' || (!['__proto__'].includes(h)));
-
-    let html = '<table class="data-table"><thead><tr>';
+    // Используем массив для накопления строк (быстрее конкатенации)
+    const html = [];
+    html.push('<table class="data-table"><thead><tr>');
     
     // Заголовки
-    displayHeaders.forEach(h => {
-      html += `<th>${h}</th>`;
-    });
-    
-    if (editable) {
-      html += '<th>Действия</th>';
+    for (const h of displayHeaders) {
+      html.push(`<th>${escapeHtml(h)}</th>`);
     }
     
-    html += '</tr></thead><tbody>';
+    if (editable) {
+      html.push('<th>Действия</th>');
+    }
     
-    // Данные
-    data.forEach((row, index) => {
-      html += '<tr>';
-      displayHeaders.forEach(h => {
+    html.push('</tr></thead><tbody>');
+    
+    // Данные - оптимизированный цикл for вместо forEach
+    const len = data.length;
+    for (let i = 0; i < len; i++) {
+      const row = data[i];
+      html.push('<tr>');
+      
+      for (const h of displayHeaders) {
         let val = row[h];
         if (val === undefined || val === null) val = '';
         
-        // Форматируем даты (ISO формат или DD.MM.YYYY)
-        if (typeof val === 'string') {
-          // ISO формат: 2026-03-16T...
-          if (val.match(/^\d{4}-\d{2}-\d{2}T/)) {
-            const date = new Date(val);
-            if (!isNaN(date.getTime())) {
-              val = date.toLocaleDateString('ru-RU');
+        // Быстрое форматирование дат без регулярных выражений
+        if (typeof val === 'string' && val.length > 10) {
+          if (val[4] === '-' && val[10] === 'T') {
+            // ISO формат: 2026-03-16T...
+            const d = new Date(val);
+            if (!isNaN(d.getTime())) {
+              val = `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
             }
-          }
-          // Уже в формате DD.MM.YYYY - оставляем как есть
-          else if (val.match(/^\d{2}\.\d{2}\.\d{4}$/)) {
-            // val уже в правильном формате
-          }
-          // Формат YYYY-MM-DD
-          else if (val.match(/^\d{4}-\d{2}-\d{2}$/)) {
-            const [y, m, d] = val.split('-');
-            val = `${d}.${m}.${y}`;
+          } else if (val[4] === '-' && val[7] === '-') {
+            // YYYY-MM-DD
+            val = `${val[8]}${val[9]}.${val[5]}${val[6]}.${val[0]}${val[1]}${val[2]}${val[3]}`;
           }
         }
         
-        // Форматируем длинный текст
+        // Обрезка длинного текста
         if (typeof val === 'string' && val.length > 50) {
           val = val.substring(0, 50) + '…';
         }
         
         // Определяем класс выравнивания
-        // Текстовые поля (ФИО, Поломки) выравниваем по левому краю
         const lowerH = h.toLowerCase();
         const isTextField = lowerH.includes('master') || 
                            lowerH.includes('мастер') || 
                            lowerH.includes('фио') ||
                            lowerH.includes('breakdowns') ||
                            lowerH.includes('поломки');
-        const tdClass = isTextField ? 'text-left' : '';
         
-        // Экранируем HTML для безопасности
-        const safeVal = this.escapeHtml(String(val));
-        
-        html += `<td class="${tdClass}">${safeVal}</td>`;
-      });
-      
-      if (editable) {
-        const rowId = row.id || row.ID || index;
-        // Экранируем ID для безопасности
-        const safeId = this.escapeHtml(String(rowId));
-        html += `<td class="actions-cell">
-          <button class="btn btn-sm btn-edit" data-id="${safeId}" data-action="edit" title="Редактировать">✏️</button>
-          <button class="btn btn-sm btn-delete" data-id="${safeId}" data-action="delete" title="Удалить">🗑️</button>
-        </td>`;
+        const cls = isTextField ? ' class="text-left"' : '';
+        html.push(`<td${cls}>${escapeHtml(String(val))}</td>`);
       }
       
-      html += '</tr>';
-    });
+      if (editable) {
+        const rowId = escapeHtml(String(row.id || row.ID || i));
+        html.push(`<td class="actions-cell">
+          <button class="btn btn-sm btn-edit" data-id="${rowId}" data-action="edit" title="Редактировать">✏️</button>
+          <button class="btn btn-sm btn-delete" data-id="${rowId}" data-action="delete" title="Удалить">🗑️</button>
+        </td>`);
+      }
+      
+      html.push('</tr>');
+    }
     
-    html += '</tbody></table>';
-    return html;
+    html.push('</tbody></table>');
+    return html.join('');
   }
 
   /**
@@ -161,21 +149,47 @@ export class UI {
     modal.className = 'modal-overlay';
     
     const title = isEdit ? 'Редактирование записи' : 'Новая запись';
+    const defaultShop = escapeHtml('Цех №2');
     
-    // Экранируем значение по умолчанию для value
-    const defaultShop = this.escapeHtml('Цех №2');
+    // Генерируем поля формы через массив (быстрее строковых конкатенаций)
+    const peopleFields = CONFIG.sections.people.map(p => `
+      <div class="form-group">
+        <label for="edit_${p.id}">${escapeHtml(p.label)}</label>
+        <input type="number" id="edit_${p.id}" min="0" value="0">
+      </div>
+    `).join('');
+    
+    const productionFields = CONFIG.sections.production.map(p => `
+      <div class="form-group">
+        <label for="edit_${p.id}">${escapeHtml(p.label)}</label>
+        <input type="number" id="edit_${p.id}" min="0" value="0">
+      </div>
+    `).join('');
+    
+    const endsFields = CONFIG.sections.ends.map(p => `
+      <div class="form-group">
+        <label for="edit_${p.id}">${escapeHtml(p.label)}</label>
+        <input type="number" id="edit_${p.id}" min="0" value="0">
+      </div>
+    `).join('');
+    
+    const logisticsFields = CONFIG.sections.logistics.map(p => `
+      <div class="form-group">
+        <label for="edit_${p.id}">${escapeHtml(p.label)}</label>
+        <input type="number" id="edit_${p.id}" min="0" value="0">
+      </div>
+    `).join('');
     
     modal.innerHTML = `
       <div class="modal">
         <div class="modal-header">
-          <h3 class="modal-title">${this.escapeHtml(title)}</h3>
+          <h3 class="modal-title">${escapeHtml(title)}</h3>
           <button class="modal-close" data-action="close">&times;</button>
         </div>
         <div class="modal-body">
           <form id="editForm">
             <input type="hidden" id="record_id">
             
-            <!-- Шапка -->
             <div class="form-row">
               <div class="form-group">
                 <label for="edit_date">Дата</label>
@@ -200,51 +214,18 @@ export class UI {
               </div>
             </div>
             
-            <!-- Количество людей -->
             <h4 style="margin: 20px 0 10px; color: var(--primary);">Количество человек по участкам</h4>
-            <div class="production-grid">
-              ${CONFIG.sections.people.map(p => `
-                <div class="form-group">
-                  <label for="edit_${p.id}">${p.label}</label>
-                  <input type="number" id="edit_${p.id}" min="0" value="0">
-                </div>
-              `).join('')}
-            </div>
+            <div class="production-grid">${peopleFields}</div>
             
-            <!-- Производственные показатели -->
             <h4 style="margin: 20px 0 10px; color: var(--primary);">Производственные показатели</h4>
-            <div class="production-grid">
-              ${CONFIG.sections.production.map(p => `
-                <div class="form-group">
-                  <label for="edit_${p.id}">${p.label}</label>
-                  <input type="number" id="edit_${p.id}" min="0" value="0">
-                </div>
-              `).join('')}
-            </div>
+            <div class="production-grid">${productionFields}</div>
             
-            <!-- Днища -->
             <h4 style="margin: 20px 0 10px; color: var(--primary);">Днища</h4>
-            <div class="production-grid">
-              ${CONFIG.sections.ends.map(p => `
-                <div class="form-group">
-                  <label for="edit_${p.id}">${p.label}</label>
-                  <input type="number" id="edit_${p.id}" min="0" value="0">
-                </div>
-              `).join('')}
-            </div>
+            <div class="production-grid">${endsFields}</div>
             
-            <!-- Логистика -->
             <h4 style="margin: 20px 0 10px; color: var(--primary);">Логистика и термообработка</h4>
-            <div class="production-grid">
-              ${CONFIG.sections.logistics.map(p => `
-                <div class="form-group">
-                  <label for="edit_${p.id}">${p.label}</label>
-                  <input type="number" id="edit_${p.id}" min="0" value="0">
-                </div>
-              `).join('')}
-            </div>
+            <div class="production-grid">${logisticsFields}</div>
             
-            <!-- Поломки -->
             <div class="form-group" style="margin-top: 15px;">
               <label for="edit_breakdowns">Поломки и простои</label>
               <textarea id="edit_breakdowns" rows="3" placeholder="Описание поломок..."></textarea>
@@ -265,8 +246,8 @@ export class UI {
       this.fillEditForm(data);
     }
     
-    // Показываем
-    setTimeout(() => modal.classList.add('active'), 10);
+    // Показываем с небольшой задержкой для анимации
+    requestAnimationFrame(() => modal.classList.add('active'));
     
     return modal;
   }
@@ -275,32 +256,28 @@ export class UI {
    * Заполняет форму редактирования данными
    */
   static fillEditForm(data) {
-    // Хелпер для безопасной установки значения
     const setValue = (id, value) => {
       const el = document.getElementById(id);
       if (el) {
-        // Для input type="text" и textarea экранируем спецсимволы
         if (el.type === 'text' || el.tagName === 'TEXTAREA') {
-          el.value = this.escapeHtml(String(value || ''));
+          el.value = escapeHtml(String(value || ''));
         } else {
           el.value = value || '';
         }
       }
     };
 
-    // ID записи
     setValue('record_id', data.id || data.ID || '');
 
     // Дата
     if (data.date || data.Дата) {
       const dateStr = data.date || data.Дата;
-      const [d, m, y] = dateStr.split('.');
-      if (d && m && y) {
-        setValue('edit_date', `${y}-${m}-${d}`);
+      const parts = dateStr.split('.');
+      if (parts.length === 3) {
+        setValue('edit_date', `${parts[2]}-${parts[1]}-${parts[0]}`);
       }
     }
 
-    // Основные поля
     setValue('edit_shift', data.shift || data.Смена || '');
     setValue('edit_shop', data.shop || data.Цех || '');
     setValue('edit_master', data.master || data.ФИО_мастера || '');
@@ -314,17 +291,16 @@ export class UI {
       ...CONFIG.sections.logistics
     ];
 
-    allFields.forEach(field => {
+    for (const field of allFields) {
       let value = data[field.id];
       if (value === undefined) {
-        // Пробуем найти по русскому названию
         const russianKey = Object.keys(data).find(k => 
           k.toLowerCase().replace(/_/g, ' ') === field.label.toLowerCase()
         );
         value = russianKey ? data[russianKey] : 0;
       }
       setValue(`edit_${field.id}`, value);
-    });
+    }
   }
 
   /**
@@ -342,7 +318,7 @@ export class UI {
       return isNaN(val) ? 0 : Math.max(0, val);
     };
 
-    // Форматируем дату
+    // Валидация даты
     const dateVal = getValue('edit_date');
     if (!dateVal || !dateVal.match(/^\d{4}-\d{2}-\d{2}$/)) {
       throw new Error('Некорректная дата');
@@ -355,7 +331,6 @@ export class UI {
       throw new Error('Некорректная смена');
     }
     
-    // ID из record_id (при редактировании) или null (при добавлении - сгенерируется в storage.js)
     const id = getValue('record_id') || null;
 
     const data = {
@@ -365,7 +340,7 @@ export class UI {
       shop: getValue('edit_shop'),
       master: getValue('edit_master'),
       breakdowns: getValue('edit_breakdowns'),
-      isUpdate: !!getValue('record_id') // Флаг обновления
+      isUpdate: !!getValue('record_id')
     };
 
     // Добавляем все числовые поля
@@ -376,9 +351,9 @@ export class UI {
       ...CONFIG.sections.logistics
     ];
 
-    allFields.forEach(field => {
+    for (const field of allFields) {
       data[field.id] = getNumber(`edit_${field.id}`);
-    });
+    }
 
     // Считаем общее количество людей
     data.total_people = CONFIG.sections.people.reduce((sum, field) => {
@@ -406,7 +381,7 @@ export class UI {
     container.innerHTML = `
       <div class="loading">
         <div class="loading-spinner"></div>
-        <p>${message}</p>
+        <p>${escapeHtml(message)}</p>
       </div>
     `;
   }
@@ -415,8 +390,7 @@ export class UI {
    * Показывает ошибку
    */
   static showError(container, message) {
-    // Заменяем переносы строк на <br> и экранируем HTML
-    const formattedMessage = this.escapeHtml(String(message)).replace(/\n/g, '<br>');
+    const formattedMessage = escapeHtml(String(message)).replace(/\n/g, '<br>');
     container.innerHTML = `
       <div class="error-message" style="text-align: left; font-family: monospace; white-space: pre-wrap;">
         <p>⚠️ Ошибка соединения с сервером</p>

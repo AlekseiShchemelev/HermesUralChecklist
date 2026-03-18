@@ -5,12 +5,63 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
   <meta name="description" content="Сменный чек-лист для учёта производственных показателей">
   <meta name="theme-color" content="#2563eb">
+  
+  <!-- PWA мета-теги -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Чек-лист">
+  
   <title>Сменный чек-лист</title>
+  
+  <!-- Preconnect для ускорения загрузки -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://script.google.com">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <link rel="dns-prefetch" href="https://fonts.googleapis.com">
+  <link rel="dns-prefetch" href="https://script.google.com">
+  
+  <!-- Preload критических ресурсов -->
+  <link rel="preload" href="css/main.css" as="style">
+  <link rel="preload" href="js/config.js" as="script" crossorigin>
+  <link rel="preload" href="js/storage.js" as="script" crossorigin>
+  <link rel="preload" href="js/data.js" as="script" crossorigin>
+  <link rel="preload" href="js/ui.js" as="script" crossorigin>
+  <link rel="preload" href="js/cache.js" as="script" crossorigin>
+  <link rel="preload" href="js/app.js" as="script" crossorigin>
+  
+  <!-- Манифест PWA -->
+  <link rel="manifest" href="manifest.json">
+  
+  <!-- Иконки -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📋</text></svg>">
+  
+  <!-- Критический CSS inline для первого экрана -->
+  <style>
+    /* Критические стили для первого экрана */
+    body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:#f8fafc}
+    .app-container{max-width:1440px;margin:0 auto;padding:20px}
+    .app-header{background:#fff;border-radius:16px;padding:24px;margin-bottom:24px;box-shadow:0 4px 6px -1px rgba(0,0,0,.1)}
+    .mode-switcher{display:flex;gap:12px;flex-wrap:wrap}
+    .mode-btn{padding:12px 24px;border:2px solid #e2e8f0;background:#fff;border-radius:12px;cursor:pointer}
+    .mode-btn.active{background:#2563eb;color:#fff;border-color:#2563eb}
+    .content-section{display:none}
+    .content-section.active{display:block}
+    .loading{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px}
+    .loading-spinner{width:40px;height:40px;border:4px solid #e2e8f0;border-top-color:#2563eb;border-radius:50%;animation:spin 1s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+  </style>
+  
+  <!-- Полный CSS асинхронно -->
+  <link rel="preload" href="css/main.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="css/main.css"></noscript>
+  
+  <!-- Шрифты с font-display:swap -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/main.css">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <!-- Chart.js defer (нужен только для отчётов) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
 </head>
 <body>
   <div class="app-container">

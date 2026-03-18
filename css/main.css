@@ -1,6 +1,11 @@
 /* ========================================
-   СМЕННЫЙ ОТЧЁТ - СОВРЕМЕННЫЙ ДИЗАЙН
+   СМЕННЫЙ ОТЧЁТ - ОПТИМИЗИРОВАННЫЙ
    ======================================== */
+
+/* Отключаем ненужные функции для производительности */
+html {
+  scroll-behavior: smooth;
+}
 
 /* CSS Variables - современная цветовая схема */
 :root {
@@ -173,10 +178,18 @@ body {
   margin-bottom: 24px;
   box-shadow: var(--shadow-md);
   transition: var(--transition);
+  /* Оптимизация рендеринга */
+  contain: layout style;
 }
 
 .card:hover {
   box-shadow: var(--shadow-lg);
+  /* Оптимизация - только изменяемые свойства */
+  will-change: box-shadow;
+}
+
+.card:not(:hover) {
+  will-change: auto;
 }
 
 .card-title {
@@ -336,12 +349,19 @@ table tfoot th {
   font-weight: 500;
   font-family: var(--font-family);
   cursor: pointer;
-  transition: var(--transition);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   white-space: nowrap;
+  /* Оптимизация для анимаций */
+  will-change: transform;
+  transform: translateZ(0); /* Включаем GPU acceleration */
+}
+
+.btn:active {
+  transform: translateY(1px);
 }
 
 .btn-primary {
@@ -529,6 +549,9 @@ table tfoot th {
   width: 100%;
   border-collapse: collapse;
   font-size: var(--text-sm);
+  /* Оптимизация рендеринга */
+  contain: layout;
+  will-change: transform;
 }
 
 .data-table th {
