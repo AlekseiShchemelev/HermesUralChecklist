@@ -90,7 +90,7 @@ class App {
       const isCacheValid = await indexedCache.isValid();
       if (isCacheValid) {
         this.storage.data = await indexedCache.getRecords();
-        console.log('Data preloaded from IndexedDB');
+        // Data preloaded
       } else {
         await this.storage.load();
         // Сохраняем в IndexedDB для будущего использования
@@ -1074,8 +1074,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // Регистрация Service Worker
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js')
-      .then(() => console.log('SW registered'))
-      .catch(() => console.log('SW registration failed'));
+      .then(() => {})
+      .catch(() => {});
   }
 });
 

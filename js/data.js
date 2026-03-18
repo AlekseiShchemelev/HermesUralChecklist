@@ -74,7 +74,7 @@ export class DataManager {
         const blob = new Blob([workerCode], { type: 'application/javascript' });
         this.filterWorker = new Worker(URL.createObjectURL(blob));
       } catch (e) {
-        console.log('Worker not supported, using main thread');
+        // Worker not supported
       }
     }
   }

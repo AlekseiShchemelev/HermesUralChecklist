@@ -102,12 +102,11 @@ export class Storage {
       
     } catch (error) {
       if (error.name === 'AbortError') {
-        console.log('Request cancelled');
+        // Request cancelled
         return this.data; // Возвращаем текущие данные
       }
       
       // Fallback на JSONP если CORS не работает
-      console.warn('CORS failed, trying JSONP fallback:', error.message);
       return this.loadJSONP();
       
     } finally {
@@ -215,7 +214,6 @@ export class Storage {
       }
       
       // Fallback на no-cors если CORS не работает
-      console.warn('CORS POST failed, trying no-cors fallback:', error.message);
       return this.saveNoCors(sendData);
     }
   }

@@ -26,7 +26,7 @@ export class IndexedCache {
       const request = indexedDB.open(DB_NAME, DB_VERSION);
 
       request.onerror = () => {
-        console.error('IndexedDB error:', request.error);
+        // IndexedDB error
         reject(request.error);
       };
 

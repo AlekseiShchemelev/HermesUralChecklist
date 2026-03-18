@@ -26,13 +26,13 @@ const EXTERNAL_ASSETS = [
 
 // При установке - кэшируем новые ресурсы
 self.addEventListener("install", (event) => {
-  console.log(`[SW] Installing version ${VERSION}`);
+  // Installing service worker
 
   event.waitUntil(
     caches
       .open(CACHE_NAME)
       .then((cache) => {
-        console.log("[SW] Caching static assets");
+        // Caching static assets
         return cache.addAll(STATIC_ASSETS);
       })
       .then(() => {
@@ -42,15 +42,15 @@ self.addEventListener("install", (event) => {
             EXTERNAL_ASSETS.map((url) =>
               fetch(url, { mode: "no-cors" })
                 .then((response) => cache.put(url, response))
-                .catch((err) =>
-                  console.log("[SW] Failed to cache external:", url),
-                ),
+                .catch(() => {
+                  // Failed to cache external - ignore
+                }),
             ),
           );
         });
       })
       .then(() => {
-        console.log("[SW] Skipping waiting");
+        // Skip waiting
         return self.skipWaiting();
       }),
   );
@@ -58,7 +58,7 @@ self.addEventListener("install", (event) => {
 
 // При активации - удаляем ВСЕ старые кэши
 self.addEventListener("activate", (event) => {
-  console.log(`[SW] Activating version ${VERSION}`);
+  // Activating service worker
 
   event.waitUntil(
     caches
@@ -68,14 +68,14 @@ self.addEventListener("activate", (event) => {
           cacheNames.map((cacheName) => {
             // Удаляем все кэши кроме текущего
             if (cacheName !== CACHE_NAME) {
-              console.log("[SW] Deleting old cache:", cacheName);
+              // Deleting old cache
               return caches.delete(cacheName);
             }
           }),
         );
       })
       .then(() => {
-        console.log("[SW] Claiming clients");
+        // Claiming clients
         return self.clients.claim();
       })
       .then(() => {
@@ -138,7 +138,7 @@ const strategies = {
       // Fallback на кэш
       const cached = await caches.match(request);
       if (cached) {
-        console.log("[SW] Serving cached API response");
+        // Serving cached response
         return cached;
       }
       throw error;
