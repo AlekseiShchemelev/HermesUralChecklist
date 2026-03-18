@@ -3,7 +3,7 @@
  * Инкрементируй VERSION при каждом деплое!
  */
 
-const VERSION = "5"; // <-- МЕНЯЙТЕ ЭТО ЧИСЛО ПРИ КАЖДОМ ОБНОВЛЕНИИ
+const VERSION = "7"; // <-- МЕНЯЙТЕ ЭТО ЧИСЛО ПРИ КАЖДОМ ОБНОВЛЕНИИ
 const CACHE_NAME = `checklist-v${VERSION}`;
 
 // Статические ресурсы для кэширования
@@ -11,12 +11,12 @@ const STATIC_ASSETS = [
   "./",
   "./index.html",
   "./css/main.css",
-  "./js/app.js",
-  "./js/config.js",
-  "./js/data.js",
-  "./js/storage.js",
-  "./js/ui.js",
-  "./js/cache.js",
+  "./js/app.js?v=7",
+  "./js/config.js?v=7",
+  "./js/data.js?v=7",
+  "./js/storage.js?v=7",
+  "./js/ui.js?v=7",
+  "./js/cache.js?v=7",
 ];
 
 // Внешние ресурсы (CDN)
@@ -177,17 +177,15 @@ self.addEventListener("fetch", (event) => {
     return; // Не перехватываем JSONP
   }
 
-  // API запросы к Google Script (только обычные fetch, не JSONP)
-  if (url.href.includes("script.google.com") && !url.searchParams.has('callback')) {
-    event.respondWith(strategies.api(request));
-    return;
+  // Пропускаем все запросы к Google Script (JSONP работает напрямую)
+  if (url.href.includes("script.google.com")) {
+    return; // Не перехватываем API запросы
   }
 
-  // Статические ресурсы приложения
-  if (
-    STATIC_ASSETS.includes(url.pathname) ||
-    STATIC_ASSETS.includes(url.pathname.substring(1))
-  ) {
+  // Статические ресурсы приложения (без query-параметров)
+  const pathnameWithoutQuery = url.pathname.replace(/^\//, '');
+  const staticPaths = STATIC_ASSETS.map(p => p.replace(/^\.\//, '').replace(/\?.*$/, ''));
+  if (staticPaths.includes(pathnameWithoutQuery)) {
     event.respondWith(strategies.static(request));
     return;
   }
