@@ -231,7 +231,7 @@ class App {
    * Инициализация подсчёта людей с debounce
    */
   initPeopleCalculation() {
-    const inputs = document.querySelectorAll('.people-input');
+    const inputs = document.querySelectorAll('.people-input:not(#total_people)');
     
     for (const input of inputs) {
       input.addEventListener('input', () => {
@@ -658,14 +658,14 @@ class App {
    */
   async loadReportData() {
     const today = new Date();
-    const monthAgo = new Date();
-    monthAgo.setDate(monthAgo.getDate() - 30);
+    const fourDaysAgo = new Date();
+    fourDaysAgo.setDate(fourDaysAgo.getDate() - 4);
     
     const reportDateTo = document.getElementById('reportDateTo');
     const reportDateFrom = document.getElementById('reportDateFrom');
     
     if (reportDateTo) reportDateTo.valueAsDate = today;
-    if (reportDateFrom) reportDateFrom.valueAsDate = monthAgo;
+    if (reportDateFrom) reportDateFrom.valueAsDate = fourDaysAgo;
     
     const generateBtn = document.getElementById('generateReports');
     if (generateBtn) {
@@ -684,6 +684,8 @@ class App {
     scheduleWork(async () => {
       try {
         await this.storage.load();
+        // Сбрасываем кэш при загрузке для корректного отображения
+        this.chartDataHash = null;
         this.generateReports();
       } catch (error) {
         // Игнорируем ошибки
@@ -692,22 +694,31 @@ class App {
   }
 
   /**
-   * Парсит дату
+   * Парсит дату из различных форматов
+   * Поддерживает: DD.MM.YYYY, YYYY-MM-DD, ISO 8601 (2026-03-16T19:00:00.000Z)
    */
   parseDate(dateStr) {
     if (!dateStr) return null;
     
+    // ISO 8601 формат (2026-03-16T19:00:00.000Z)
+    if (dateStr.includes('T')) {
+      const date = new Date(dateStr);
+      if (!isNaN(date.getTime())) {
+        // Конвертируем UTC в локальную дату
+        return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      }
+    }
+    
+    // DD.MM.YYYY
     if (dateStr.match(/^\d{2}\.\d{2}\.\d{4}$/)) {
       const [d, m, y] = dateStr.split('.');
-      return new Date(y, m - 1, d);
+      return new Date(Number(y), Number(m) - 1, Number(d));
     }
     
+    // YYYY-MM-DD - важно: создавать дату в ЛОКАЛЬНОЙ временной зоне
     if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
-      return new Date(dateStr);
-    }
-    
-    if (dateStr.includes('T')) {
-      return new Date(dateStr);
+      const [y, m, d] = dateStr.split('-');
+      return new Date(Number(y), Number(m) - 1, Number(d));
     }
     
     const d = new Date(dateStr);
@@ -755,11 +766,15 @@ class App {
    */
   resetReportFilters() {
     const today = new Date();
-    const monthAgo = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
+    const fourDaysAgo = new Date();
+    fourDaysAgo.setDate(today.getDate() - 4);
     
-    document.getElementById('reportDateFrom').valueAsDate = monthAgo;
+    document.getElementById('reportDateFrom').valueAsDate = fourDaysAgo;
     document.getElementById('reportDateTo').valueAsDate = today;
     document.getElementById('reportShift').value = '';
+    
+    // Сбрасываем кэш графиков чтобы принудительно пересоздать их
+    this.chartDataHash = null;
     
     this.generateReports();
   }

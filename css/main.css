@@ -490,7 +490,8 @@ table tfoot th {
 }
 
 /* People table specific */
-.people-input {
+.people-input,
+#total_people {
   width: 80px;
   padding: 8px;
   text-align: center;

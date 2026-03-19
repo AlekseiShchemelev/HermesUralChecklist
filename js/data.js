@@ -22,45 +22,77 @@ export class DataManager {
       try {
         // Inline worker для простоты
         const workerCode = `
+          // Парсит дату из различных форматов (ISO, DD.MM.YYYY, YYYY-MM-DD)
+          function parseRowDate(dateStr) {
+            if (!dateStr) return null;
+            
+            // ISO 8601 формат (2026-03-16T19:00:00.000Z)
+            if (dateStr.includes('T')) {
+              const date = new Date(dateStr);
+              if (!isNaN(date.getTime())) {
+                return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+              }
+            }
+            
+            // Формат DD.MM.YYYY
+            const parts = dateStr.split('.');
+            if (parts.length === 3) {
+              return new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+            }
+            
+            // Формат YYYY-MM-DD
+            const dashParts = dateStr.split('-');
+            if (dashParts.length === 3) {
+              return new Date(Number(dashParts[0]), Number(dashParts[1]) - 1, Number(dashParts[2]));
+            }
+            
+            return null;
+          }
+          
+          // Парсит YYYY-MM-DD фильтра в локальную дату
+          function parseFilterDate(dateStr) {
+            const parts = dateStr.split('-');
+            return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+          }
+          
           self.onmessage = function(e) {
             const { data, filters } = e.data;
+            
             const result = data.filter(row => {
-              // Фильтр по дате
+              // Фильтр по дате - проверяем все возможные варианты названий полей
               if (filters.dateFrom || filters.dateTo) {
-                const rowDate = row.date || row.Дата;
+                const rowDate = row.date || row.Дата || row['ДАТА'] || row['дата'];
                 if (!rowDate) return false;
                 
-                const parts = rowDate.split('.');
-                if (parts.length === 3) {
-                  const rowDateObj = new Date(parts[2], parts[1] - 1, parts[0]);
-                  
-                  if (filters.dateFrom) {
-                    const from = new Date(filters.dateFrom);
-                    if (rowDateObj < from) return false;
-                  }
-                  if (filters.dateTo) {
-                    const to = new Date(filters.dateTo);
-                    to.setHours(23, 59, 59);
-                    if (rowDateObj > to) return false;
-                  }
+                const rowDateObj = parseRowDate(rowDate);
+                if (!rowDateObj) return false;
+                
+                if (filters.dateFrom) {
+                  const from = parseFilterDate(filters.dateFrom);
+                  if (rowDateObj < from) return false;
+                }
+                if (filters.dateTo) {
+                  const to = parseFilterDate(filters.dateTo);
+                  to.setHours(23, 59, 59);
+                  if (rowDateObj > to) return false;
                 }
               }
               
               // Фильтр по смене
               if (filters.shift) {
-                const rowShift = row.shift || row.Смена;
+                const rowShift = row.shift || row.Смена || row['СМЕНА'];
                 if (String(rowShift) !== String(filters.shift)) return false;
               }
               
               // Фильтр по цеху
               if (filters.shop) {
-                const rowShop = (row.shop || row.Цех || '').toLowerCase();
+                const rowShop = (row.shop || row.Цех || row['ЦЕХ'] || '').toLowerCase();
                 if (!rowShop.includes(filters.shop.toLowerCase())) return false;
               }
               
               // Фильтр по мастеру
               if (filters.master) {
-                const rowMaster = (row.master || row.ФИО_мастера || '').toLowerCase();
+                const rowMaster = (row.master || row.ФИО_мастера || row['ФИО_МАСТЕРА'] || '').toLowerCase();
                 if (!rowMaster.includes(filters.master.toLowerCase())) return false;
               }
               
@@ -90,13 +122,35 @@ export class DataManager {
   }
 
   /**
-   * Парсит дату
+   * Парсит дату из различных форматов
+   * Поддерживает: DD.MM.YYYY, YYYY-MM-DD, ISO 8601 (2026-03-16T19:00:00.000Z)
    */
   static parseDate(dateString) {
     if (!dateString) return null;
+    
+    // ISO 8601 формат (2026-03-16T19:00:00.000Z)
+    if (dateString.includes('T')) {
+      const date = new Date(dateString);
+      if (!isNaN(date.getTime())) {
+        // Конвертируем UTC в локальную дату (для GMT+0500)
+        const localDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+        return localDate;
+      }
+    }
+    
+    // Формат DD.MM.YYYY
     const parts = dateString.split('.');
-    if (parts.length !== 3) return null;
-    return new Date(parts[2], parts[1] - 1, parts[0]);
+    if (parts.length === 3) {
+      return new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+    }
+    
+    // Формат YYYY-MM-DD
+    const dashParts = dateString.split('-');
+    if (dashParts.length === 3) {
+      return new Date(Number(dashParts[0]), Number(dashParts[1]) - 1, Number(dashParts[2]));
+    }
+    
+    return null;
   }
 
   /**
@@ -212,7 +266,8 @@ export class DataManager {
     
     // Новый таймер
     debounceTimer = setTimeout(() => {
-      const inputs = document.querySelectorAll('.people-input');
+      // Исключаем total_people из подсчёта
+      const inputs = document.querySelectorAll('.people-input:not(#total_people)');
       let total = 0;
       
       // Быстрый цикл for
@@ -271,46 +326,56 @@ export class DataManager {
   filterSync(filters) {
     const { dateFrom, dateTo, shift, shop, master } = filters;
     
-    return this.data.filter(row => {
-      // Фильтр по дате
-      if (dateFrom || dateTo) {
-        const rowDate = row.date || row.Дата;
+    // Парсим даты фильтра заранее (из YYYY-MM-DD в локальную дату)
+    let filterFrom = null;
+    let filterTo = null;
+    if (dateFrom) {
+      const [y, m, d] = dateFrom.split('-');
+      filterFrom = new Date(Number(y), Number(m) - 1, Number(d), 0, 0, 0);
+    }
+    if (dateTo) {
+      const [y, m, d] = dateTo.split('-');
+      filterTo = new Date(Number(y), Number(m) - 1, Number(d), 23, 59, 59);
+    }
+    
+    const result = this.data.filter(row => {
+      // Фильтр по дате - проверяем все возможные варианты названий полей
+      if (filterFrom || filterTo) {
+        const rowDate = row.date || row.Дата || row['ДАТА'] || row['дата'];
         if (!rowDate) return false;
         
         const rowDateObj = DataManager.parseDate(rowDate);
-        if (!rowDateObj) return false;
+        if (!rowDateObj) {
+          console.warn('Не удалось распарсить дату:', rowDate);
+          return false;
+        }
         
-        if (dateFrom) {
-          const from = new Date(dateFrom);
-          if (rowDateObj < from) return false;
-        }
-        if (dateTo) {
-          const to = new Date(dateTo);
-          to.setHours(23, 59, 59);
-          if (rowDateObj > to) return false;
-        }
+        if (filterFrom && rowDateObj < filterFrom) return false;
+        if (filterTo && rowDateObj > filterTo) return false;
       }
       
       // Фильтр по смене
       if (shift) {
-        const rowShift = row.shift || row.Смена;
+        const rowShift = row.shift || row.Смена || row['СМЕНА'];
         if (String(rowShift) !== String(shift)) return false;
       }
       
       // Фильтр по цеху
       if (shop) {
-        const rowShop = (row.shop || row.Цех || '').toLowerCase();
+        const rowShop = (row.shop || row.Цех || row['ЦЕХ'] || '').toLowerCase();
         if (!rowShop.includes(shop.toLowerCase())) return false;
       }
       
       // Фильтр по мастеру
       if (master) {
-        const rowMaster = (row.master || row.ФИО_мастера || '').toLowerCase();
+        const rowMaster = (row.master || row.ФИО_мастера || row['ФИО_МАСТЕРА'] || '').toLowerCase();
         if (!rowMaster.includes(master.toLowerCase())) return false;
       }
       
       return true;
     });
+    
+    return result;
   }
 }
 
