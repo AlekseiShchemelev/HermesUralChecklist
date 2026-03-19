@@ -2,6 +2,124 @@
    СМЕННЫЙ ОТЧЁТ - ОПТИМИЗИРОВАННЫЙ
    ======================================== */
 
+/* Экран авторизации */
+.login-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+}
+
+.login-card {
+  background: white;
+  border-radius: var(--radius-lg);
+  padding: 40px;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: var(--shadow-lg);
+}
+
+.login-header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.login-header h1 {
+  font-size: var(--text-2xl);
+  color: var(--primary);
+  margin-bottom: 8px;
+}
+
+.login-header p {
+  color: var(--text-secondary);
+  font-size: var(--text-lg);
+}
+
+.login-form .form-group {
+  margin-bottom: 20px;
+}
+
+.login-form label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.login-form input {
+  width: 100%;
+  padding: 12px 16px;
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
+  transition: var(--transition);
+}
+
+.login-form input:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.btn-block {
+  width: 100%;
+  padding: 14px;
+  font-size: var(--text-lg);
+}
+
+.login-error {
+  margin-top: 16px;
+  padding: 12px;
+  background: #fee2e2;
+  color: #991b1b;
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  display: none;
+}
+
+.login-error.show {
+  display: block;
+}
+
+.login-footer {
+  margin-top: 24px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+/* Кнопка выхода */
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: var(--primary-light);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+}
+
+.user-info span {
+  font-weight: 500;
+  color: var(--primary-dark);
+}
+
+.btn-logout {
+  padding: 6px 12px;
+  font-size: var(--text-xs);
+  background: white;
+  border: 1px solid var(--primary);
+  color: var(--primary);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.btn-logout:hover {
+  background: var(--primary);
+  color: white;
+}
+
 /* Спиннер загрузки */
 .spinner {
   display: inline-block;

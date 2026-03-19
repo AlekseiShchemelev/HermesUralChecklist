@@ -1,298 +1,145 @@
-// Google Apps Script для сменного чек-листа
-// Разверните как веб-приложение с доступом "Все"
+function makeJSON(data) {
+  return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
+}
 
-// Маппинг русских заголовков на английские ключи
-const COLUMN_MAP = {
-  'ID': 'id',
-  'ДАТА': 'date',
-  'СМЕНА': 'shift',
-  'ЦЕХ': 'shop',
-  'ФИО_МАСТЕРА': 'master',
-  'ПЛАЗМА_ЧЕЛ': 'plasma_people',
-  'СТРОЖКА_ЧЕЛ': 'strozka_people',
-  'ЗАЧИСТКА_ПОД_СВАРКУ_ЧЕЛ': 'zachistka_people',
-  'АВТ_СВАРКА_ЧЕЛ': 'avtosvarka_people',
-  'ПОЛОТЕР_ЧЕЛ': 'poloter_people',
-  'ШТАМП_500Т_СТАРЫЙ_ЧЕЛ': 'press_old_people',
-  'ИТАЛЬЯНЕЦ_ЧЕЛ': 'italy_people',
-  'ШТАМП_500Т_НОВЫЙ_ЧЕЛ': 'press_new_people',
-  'ОТБОРТОВКА_ЧЕЛ': 'otbortovka_people',
-  'КРОМКООБРЕЗНОЙ_СТАНОК_ЧЕЛ': 'kromko_people',
-  'КОТЕЛЬЩИК_ПРИЕМКА_ЧЕЛ': 'kotelshchik_people',
-  'РУЧНАЯ_СВАРКА_ЧЕЛ': 'ruchsvarka_people',
-  'ВСЕГО_ЧЕЛ': 'total_people',
-  'ПЛАЗМА_ЛИСТЫ': 'plasma_sheets',
-  'СТРОЖКА_ОТСТРОГАНО_СЕГМЕНТОВ': 'strozka_segments',
-  'АВТ_СВАРКА_ЗАВАРЕНО_КАРТ': 'avtosvarka_cards',
-  'ПОЛОТЕР_ПОЧИЩЕНО_КАРТ': 'poloter_cleaned',
-  'ЗАЧИСТКА_ПОД_СВАРКУ_ПОЧИЩЕНО_КАРТ': 'zachistka_cleaned',
-  'ОТШТАМПОВАНО_ПРЕСС_СТАРЫЙ': 'stamped_old',
-  'ОТШТАМПОВАНО_ИТАЛЬЯНЕЦ': 'stamped_italy',
-  'ОТШТАМПОВАНО_ПРЕСС_НОВЫЙ': 'stamped_new',
-  'КОМБИНИРОВАННЫХ_ДНИЩ': 'combined',
-  'РЕМОНТНЫХ_ДНИЩ': 'repair',
-  'ОТБОРТОВАННЫХ_ДНИЩ': 'flanged',
-  'ОБРЕЗАННЫХ_ДНИЩ': 'trimmed',
-  'УПАКОВАННЫХ_ДНИЩ': 'packed',
-  'ПАЧЕК_В_ПЛЕНКУ': 'film_packs',
-  'РАЗГРУЖЕННЫХ_МАШИН': 'unloaded',
-  'ОТГРУЖЕННЫХ_МАШИН': 'loaded',
-  'САДОК_МАЛАЯ_ПЕЧЬ': 'small_furnace',
-  'САДОК_БОЛЬШАЯ_ПЕЧЬ': 'large_furnace',
-  'ПОЛОМКИ_И_ПРОСТОИ': 'breakdowns',
-  'TIMESTAMP': 'timestamp'
-};
+function makeJSONP(data, callback) {
+  if (!callback || !/^[a-zA-Z0-9_]+$/.test(callback)) return makeJSON(data);
+  return ContentService.createTextOutput(callback + '(' + JSON.stringify(data) + ');').setMimeType(ContentService.MimeType.JAVASCRIPT);
+}
+
+function authenticateUser(fio, password, callback) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const userSheet = ss.getSheetByName('Пользователи');
+    if (!userSheet) {
+      return makeJSONP({result: 'error', message: 'Список пользователей не найден'}, callback);
+    }
+    
+    const data = userSheet.getDataRange().getValues();
+    const headers = data[0];
+    const fioIndex = headers.indexOf('ФИО');
+    const passIndex = headers.indexOf('ПАРОЛЬ');
+    const roleIndex = headers.indexOf('РОЛЬ');
+    
+    if (fioIndex === -1 || passIndex === -1) {
+      return makeJSONP({result: 'error', message: 'Неверная структура таблицы'}, callback);
+    }
+    
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][fioIndex] === fio && String(data[i][passIndex]) === String(password)) {
+        const user = {fio: data[i][fioIndex], role: roleIndex !== -1 ? data[i][roleIndex] : 'user'};
+        return makeJSONP({result: 'success', user: user}, callback);
+      }
+    }
+    
+    return makeJSONP({result: 'error', message: 'Неверный логин или пароль'}, callback);
+  } catch (error) {
+    return makeJSONP({result: 'error', message: error.toString()}, callback);
+  }
+}
 
 function doGet(e) {
   try {
-    // Проверяем параметры
-    if (!e || !e.parameter) {
-      return ContentService
-        .createTextOutput(JSON.stringify({result: 'error', message: 'No parameters'}))
-        .setMimeType(ContentService.MimeType.JSON);
+    // DEBUG: полный объект e
+    console.log('Full e:', JSON.stringify(e));
+    console.log('e.parameter:', JSON.stringify(e?.parameter));
+    console.log('e.queryString:', JSON.stringify(e?.queryString));
+    
+    // Пробуем получить параметры из queryString если parameter не работает
+    let params = e?.parameter;
+    if (!params && e?.queryString) {
+      params = {};
+      const pairs = e.queryString.split('&');
+      for (const pair of pairs) {
+        const [key, value] = pair.split('=');
+        params[key] = decodeURIComponent(value || '');
+      }
     }
     
-    if (e.parameter.action === 'get') {
-      // Получаем активную таблицу
+    console.log('Final params:', JSON.stringify(params));
+    
+    if (!params) return makeJSON({result: 'error', message: 'No parameters'});
+    
+    const action = params.action;
+    const callback = params.callback;
+    
+    if (action === 'auth') {
+      return authenticateUser(e.parameter.fio, e.parameter.password, callback);
+    }
+    
+    if (action === 'get') {
       const ss = SpreadsheetApp.getActiveSpreadsheet();
-      if (!ss) {
-        return ContentService
-          .createTextOutput(JSON.stringify({result: 'error', message: 'No spreadsheet'}))
-          .setMimeType(ContentService.MimeType.JSON);
-      }
-      
       const sheet = ss.getActiveSheet();
-      if (!sheet) {
-        return ContentService
-          .createTextOutput(JSON.stringify({result: 'error', message: 'No active sheet'}))
-          .setMimeType(ContentService.MimeType.JSON);
-      }
-      
       const data = sheet.getDataRange().getValues();
       const rows = [];
       
-      // Получаем заголовки
-      const headersRow = data[0] || [];
-      
       for (let i = 1; i < data.length; i++) {
-        const row = {};
-        for (let j = 0; j < headersRow.length; j++) {
-          const header = headersRow[j];
-          const key = COLUMN_MAP[header] || header;
-          row[key] = data[i][j];
+        const row = {id: String(data[i][0])};
+        for (let j = 1; j < data[0].length; j++) {
+          row[data[0][j]] = data[i][j];
         }
-        row.id = String(data[i][0] || i);
         rows.push(row);
       }
-      
-      // JSONP поддержка
-      const callback = e.parameter.callback;
-      if (callback && /^[a-zA-Z0-9_]+$/.test(callback)) {
-        const jsonpResponse = callback + '(' + JSON.stringify({result: 'success', data: rows}) + ');';
-        return ContentService
-          .createTextOutput(jsonpResponse)
-          .setMimeType(ContentService.MimeType.JAVASCRIPT);
-      }
-      
-      // Обычный JSON ответ
-      return ContentService
-        .createTextOutput(JSON.stringify({result: 'success', data: rows}))
-        .setMimeType(ContentService.MimeType.JSON);
+      return makeJSONP({result: 'success', data: rows}, callback);
     }
     
-    return ContentService
-      .createTextOutput(JSON.stringify({result: 'ok', message: 'Use ?action=get&callback=fn'}))
-      .setMimeType(ContentService.MimeType.JSON);
-      
+    return makeJSONP({result: 'error', message: 'Unknown action'}, callback);
   } catch (error) {
-    const errorMessage = 'Error: ' + error.toString();
-    // JSONP ошибка
-    if (e?.parameter?.callback) {
-      return ContentService
-        .createTextOutput(e.parameter.callback + '(' + JSON.stringify({result: 'error', message: errorMessage}) + ');')
-        .setMimeType(ContentService.MimeType.JAVASCRIPT);
-    }
-    return ContentService
-      .createTextOutput(JSON.stringify({result: 'error', message: errorMessage}))
-      .setMimeType(ContentService.MimeType.JSON);
+    return makeJSONP({result: 'error', message: error.toString()}, e?.parameter?.callback);
   }
 }
 
 function doPost(e) {
   try {
     const data = JSON.parse(e.postData.contents);
-    
-    // Проверка обязательных полей
-    if (!data.date || !data.shift || !data.shop || !data.master) {
-      return ContentService
-        .createTextOutput(JSON.stringify({
-          result: 'error', 
-          message: 'Missing required fields: date, shift, shop, master'
-        }))
-        .setMimeType(ContentService.MimeType.JSON);
-    }
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getActiveSheet();
     
     if (data.__delete_id) {
-      return deleteRecord(data.__delete_id);
+      const values = sheet.getDataRange().getValues();
+      for (let i = 1; i < values.length; i++) {
+        if (String(values[i][0]) === String(data.__delete_id)) {
+          sheet.deleteRow(i + 1);
+          return makeJSON({result: 'success'});
+        }
+      }
+      return makeJSON({result: 'error', message: 'Not found'});
     }
     
-    if (data.__update_id) {
-      return updateRecord(data.__update_id, data);
+    if (data.id) {
+      const values = sheet.getDataRange().getValues();
+      for (let i = 1; i < values.length; i++) {
+        if (String(values[i][0]) === String(data.id)) {
+          sheet.getRange(i + 1, 2, 1, 4).setValues([[data.date, data.shift, data.shop, data.master]]);
+          return makeJSON({result: 'success'});
+        }
+      }
     }
     
-    return addRecord(data);
-  } catch (error) {
-    return ContentService
-      .createTextOutput(JSON.stringify({
-        result: 'error', 
-        message: error.toString()
-      }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-}
-
-// OPTIONS для CORS preflight - критически важно!
-function doOptions(e) {
-  return ContentService
-    .createTextOutput('')
-    .setMimeType(ContentService.MimeType.TEXT);
-}
-
-function addRecord(data) {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  
-  // Генерируем ID по порядку
-  let id;
-  if (data.id) {
-    id = String(data.id);
-  } else {
-    const sheetData = sheet.getDataRange().getValues();
+    const values = sheet.getDataRange().getValues();
     let maxId = 0;
-    for (let i = 1; i < sheetData.length; i++) {
-      const rowId = parseInt(sheetData[i][0]) || 0;
-      if (rowId > maxId) maxId = rowId;
+    for (let i = 1; i < values.length; i++) {
+      const id = parseInt(values[i][0]) || 0;
+      if (id > maxId) maxId = id;
     }
-    id = String(maxId + 1);
+    const newId = maxId + 1;
+    
+    sheet.appendRow([
+      newId, data.date, data.shift, data.shop, data.master,
+      data.plasma_people || 0, data.strozka_people || 0, data.zachistka_people || 0,
+      data.avtosvarka_people || 0, data.poloter_people || 0, data.press_old_people || 0,
+      data.italy_people || 0, data.press_new_people || 0, data.otbortovka_people || 0,
+      data.kromko_people || 0, data.kotelshchik_people || 0, data.ruchsvarka_people || 0,
+      data.total_people || 0, data.plasma_sheets || 0, data.strozka_segments || 0,
+      data.avtosvarka_cards || 0, data.poloter_cleaned || 0, data.zachistka_cleaned || 0,
+      data.stamped_old || 0, data.stamped_italy || 0, data.stamped_new || 0,
+      data.combined || 0, data.repair || 0, data.flanged || 0, data.trimmed || 0,
+      data.packed || 0, data.film_packs || 0, data.unloaded || 0, data.loaded || 0,
+      data.small_furnace || 0, data.large_furnace || 0, data.breakdowns || '', new Date()
+    ]);
+    
+    return makeJSON({result: 'success', id: newId});
+  } catch (error) {
+    return makeJSON({result: 'error', message: error.toString()});
   }
-  
-  sheet.appendRow([
-    id,
-    data.date || '',
-    data.shift || '',
-    data.shop || '',
-    data.master || '',
-    Number(data.plasma_people) || 0,
-    Number(data.strozka_people) || 0,
-    Number(data.zachistka_people) || 0,
-    Number(data.avtosvarka_people) || 0,
-    Number(data.poloter_people) || 0,
-    Number(data.press_old_people) || 0,
-    Number(data.italy_people) || 0,
-    Number(data.press_new_people) || 0,
-    Number(data.otbortovka_people) || 0,
-    Number(data.kromko_people) || 0,
-    Number(data.kotelshchik_people) || 0,
-    Number(data.ruchsvarka_people) || 0,
-    Number(data.total_people) || 0,
-    Number(data.plasma_sheets) || 0,
-    Number(data.strozka_segments) || 0,
-    Number(data.avtosvarka_cards) || 0,
-    Number(data.poloter_cleaned) || 0,
-    Number(data.zachistka_cleaned) || 0,
-    Number(data.stamped_old) || 0,
-    Number(data.stamped_italy) || 0,
-    Number(data.stamped_new) || 0,
-    Number(data.combined) || 0,
-    Number(data.repair) || 0,
-    Number(data.flanged) || 0,
-    Number(data.trimmed) || 0,
-    Number(data.packed) || 0,
-    Number(data.film_packs) || 0,
-    Number(data.unloaded) || 0,
-    Number(data.loaded) || 0,
-    Number(data.small_furnace) || 0,
-    Number(data.large_furnace) || 0,
-    data.breakdowns || '',
-    new Date()
-  ]);
-  
-  return ContentService
-    .createTextOutput(JSON.stringify({result: 'success', id: id, message: 'Record added'}))
-    .setMimeType(ContentService.MimeType.JSON);
-}
-
-function updateRecord(id, data) {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  const sheetData = sheet.getDataRange().getValues();
-  
-  for (let i = 1; i < sheetData.length; i++) {
-    if (String(sheetData[i][0]) === String(id)) {
-      const rowData = [
-        id,
-        data.date || sheetData[i][1],
-        data.shift || sheetData[i][2],
-        data.shop || sheetData[i][3],
-        data.master || sheetData[i][4],
-        Number(data.plasma_people) || 0,
-        Number(data.strozka_people) || 0,
-        Number(data.zachistka_people) || 0,
-        Number(data.avtosvarka_people) || 0,
-        Number(data.poloter_people) || 0,
-        Number(data.press_old_people) || 0,
-        Number(data.italy_people) || 0,
-        Number(data.press_new_people) || 0,
-        Number(data.otbortovka_people) || 0,
-        Number(data.kromko_people) || 0,
-        Number(data.kotelshchik_people) || 0,
-        Number(data.ruchsvarka_people) || 0,
-        Number(data.total_people) || 0,
-        Number(data.plasma_sheets) || 0,
-        Number(data.strozka_segments) || 0,
-        Number(data.avtosvarka_cards) || 0,
-        Number(data.poloter_cleaned) || 0,
-        Number(data.zachistka_cleaned) || 0,
-        Number(data.stamped_old) || 0,
-        Number(data.stamped_italy) || 0,
-        Number(data.stamped_new) || 0,
-        Number(data.combined) || 0,
-        Number(data.repair) || 0,
-        Number(data.flanged) || 0,
-        Number(data.trimmed) || 0,
-        Number(data.packed) || 0,
-        Number(data.film_packs) || 0,
-        Number(data.unloaded) || 0,
-        Number(data.loaded) || 0,
-        Number(data.small_furnace) || 0,
-        Number(data.large_furnace) || 0,
-        data.breakdowns || '',
-        new Date()
-      ];
-      
-      sheet.getRange(i + 1, 1, 1, rowData.length).setValues([rowData]);
-      return ContentService
-        .createTextOutput(JSON.stringify({result: 'success', message: 'Updated', id: id}))
-        .setMimeType(ContentService.MimeType.JSON);
-    }
-  }
-  
-  // Если не нашли - добавляем как новую
-  return addRecord(data);
-}
-
-function deleteRecord(id) {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  const data = sheet.getDataRange().getValues();
-  
-  for (let i = 1; i < data.length; i++) {
-    if (String(data[i][0]) === String(id)) {
-      sheet.deleteRow(i + 1);
-      return ContentService
-        .createTextOutput(JSON.stringify({result: 'success', message: 'Deleted'}))
-        .setMimeType(ContentService.MimeType.JSON);
-    }
-  }
-  
-  return ContentService
-    .createTextOutput(JSON.stringify({result: 'error', message: 'Not found'}))
-    .setMimeType(ContentService.MimeType.JSON);
 }

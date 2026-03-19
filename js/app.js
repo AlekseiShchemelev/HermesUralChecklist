@@ -6,6 +6,7 @@ import { DataManager } from './data.js';
 import { UI } from './ui.js';
 import { Storage } from './storage.js';
 import { indexedCache } from './cache.js';
+import auth from './auth.js';
 
 class App {
   constructor() {
@@ -32,21 +33,82 @@ class App {
    * Инициализация приложения с requestIdleCallback
    */
   init() {
-    // Критичный путь
+    // Проверяем авторизацию
+    this.initAuth();
+  }
+  
+  /**
+   * Инициализация авторизации
+   */
+  initAuth() {
+    if (auth.isAuthenticated()) {
+      this.showMainApp();
+    } else {
+      this.showLoginScreen();
+    }
+  }
+  
+  /**
+   * Показывает экран входа
+   */
+  showLoginScreen() {
+    document.getElementById('loginScreen').style.display = 'flex';
+    document.getElementById('mainApp').style.display = 'none';
+    
+    const loginForm = document.getElementById('loginForm');
+    const loginError = document.getElementById('loginError');
+    
+    loginForm.onsubmit = async (e) => {
+      e.preventDefault();
+      
+      const fio = document.getElementById('loginFio').value.trim();
+      const password = document.getElementById('loginPassword').value;
+      const btnText = document.getElementById('loginBtnText');
+      
+      btnText.textContent = 'Проверка...';
+      loginError.classList.remove('show');
+      
+      const result = await auth.login(fio, password);
+      
+      if (result.success) {
+        this.showMainApp();
+      } else {
+        loginError.textContent = result.message;
+        loginError.classList.add('show');
+        btnText.textContent = 'Войти';
+      }
+    };
+  }
+  
+  /**
+   * Показывает основное приложение
+   */
+  showMainApp() {
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('mainApp').style.display = 'block';
+    
+    // Показываем информацию о пользователе
+    const user = auth.getCurrentUser();
+    if (user) {
+      document.getElementById('userInfo').style.display = 'flex';
+      document.getElementById('userName').textContent = user.fio;
+    }
+    
+    // Кнопка выхода
+    document.getElementById('logoutBtn').onclick = () => auth.logout();
+    
+    // Инициализируем приложение
     this.bindModeSwitcher();
     this.bindFormHandlers();
     this.setDefaultDate();
     
-    // Не критичное - откладываем
     const scheduleWork = window.requestIdleCallback || ((cb) => setTimeout(cb, 1));
-    
     scheduleWork(() => {
       this.initPeopleCalculation();
       this.bindViewHandlers();
       this.preloadData();
     }, { timeout: 2000 });
     
-    // Оптимизированные обработчики resize/orientation
     this.setupOptimizedListeners();
   }
   

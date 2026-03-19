@@ -36,7 +36,7 @@
   <link rel="preload" href="js/data.js" as="script" crossorigin>
   <link rel="preload" href="js/ui.js" as="script" crossorigin>
   <link rel="preload" href="js/cache.js" as="script" crossorigin>
-  <link rel="preload" href="js/app.js?v=27" as="script" crossorigin>
+  <link rel="preload" href="js/app.js?v=33" as="script" crossorigin>
   
   <!-- Манифест PWA -->
   <link rel="manifest" href="manifest.json">
@@ -71,10 +71,44 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js" crossorigin="anonymous" defer></script>
 </head>
 <body>
-  <div class="app-container">
+  <!-- Экран авторизации -->
+  <div id="loginScreen" class="login-screen" style="display: none;">
+    <div class="login-card">
+      <div class="login-header">
+        <h1>🏭 Чек-лист цехов</h1>
+        <p>ООО "Гермес-Урал"</p>
+      </div>
+      <form id="loginForm" class="login-form">
+        <div class="form-group">
+          <label>ФИО</label>
+          <input type="text" id="loginFio" placeholder="Введите ФИО" required>
+        </div>
+        <div class="form-group">
+          <label>Пароль</label>
+          <input type="password" id="loginPassword" placeholder="Введите пароль" required>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">
+          <span id="loginBtnText">Войти</span>
+        </button>
+        <div id="loginError" class="login-error"></div>
+      </form>
+      <div class="login-footer">
+        <small>Для получения доступа обратитесь к администратору</small>
+      </div>
+    </div>
+  </div>
+
+  <!-- Основное приложение -->
+  <div class="app-container" id="mainApp" style="display: none;">
     <!-- Header с переключателем режимов -->
     <header class="app-header">
-      <h1>Сменный чек-лист</h1>
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+        <h1>Сменный чек-лист</h1>
+        <div class="user-info" id="userInfo" style="display: none;">
+          <span id="userName"></span>
+          <button class="btn-logout" id="logoutBtn">Выйти</button>
+        </div>
+      </div>
       
       <nav class="mode-switcher">
         <button class="mode-btn active" data-mode="input">
@@ -454,9 +488,10 @@
       </div>
     </section>
   </div>
+  </div>
 
   <!-- Модальное окно редактирования будет добавлено динамически -->
 
-  <script type="module" src="js/app.js?v=27"></script>
+  <script type="module" src="js/app.js?v=33"></script>
 </body>
 </html>

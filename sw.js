@@ -3,7 +3,7 @@
  * Инкрементируй VERSION при каждом деплое!
  */
 
-const VERSION = "27"; // <-- МЕНЯЙТЕ ЭТО ЧИСЛО ПРИ КАЖДОМ ОБНОВЛЕНИИ
+const VERSION = "33"; // <-- МЕНЯЙТЕ ЭТО ЧИСЛО ПРИ КАЖДОМ ОБНОВЛЕНИИ
 const CACHE_NAME = `checklist-v${VERSION}`;
 
 // Статические ресурсы для кэширования
@@ -11,12 +11,12 @@ const STATIC_ASSETS = [
   "./",
   "./index.html",
   "./css/main.css",
-  "./js/app.js?v=27",
-  "./js/config.js?v=27",
-  "./js/data.js?v=27",
-  "./js/storage.js?v=27",
-  "./js/ui.js?v=27",
-  "./js/cache.js?v=27",
+  "./js/app.js?v=33",
+  "./js/config.js?v=33",
+  "./js/data.js?v=33",
+  "./js/storage.js?v=33",
+  "./js/ui.js?v=33",
+  "./js/cache.js?v=33",
 ];
 
 // Внешние ресурсы (CDN)
