@@ -1,6 +1,8 @@
 /**
  * Модуль работы с данными (оптимизированная версия)
  */
+'use strict';
+
 import CONFIG from './config.js';
 
 // Таймер для debounce
@@ -390,6 +392,16 @@ export class DataManager {
     });
     
     return result;
+  }
+  
+  /**
+   * Очистка ресурсов
+   */
+  cleanup() {
+    if (this.filterWorker) {
+      this.filterWorker.terminate();
+      this.filterWorker = null;
+    }
   }
 }
 

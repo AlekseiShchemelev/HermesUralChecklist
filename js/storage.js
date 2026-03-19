@@ -2,6 +2,8 @@
  * Модуль работы с Google Sheets
  * Использует JSONP для GET (надёжно) и no-cors для POST
  */
+'use strict';
+
 import CONFIG from './config.js';
 
 // Константы для кэширования

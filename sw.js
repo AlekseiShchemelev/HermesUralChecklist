@@ -2,8 +2,9 @@
  * Service Worker с автоматическим версионированием
  * Инкрементируй VERSION при каждом деплое!
  */
+'use strict';
 
-const VERSION = "68"; // <-- МЕНЯЙТЕ ЭТО ЧИСЛО ПРИ КАЖДОМ ОБНОВЛЕНИИ
+const VERSION = "78"; // <-- МЕНЯЙТЕ ЭТО ЧИСЛО ПРИ КАЖДОМ ОБНОВЛЕНИИ
 const CACHE_NAME = `checklist-v${VERSION}`;
 
 // Статические ресурсы для кэширования
@@ -11,12 +12,12 @@ const STATIC_ASSETS = [
   "./",
   "./index.html",
   "./css/main.css",
-  "./js/app.js?v=68",
-  "./js/config.js?v=68",
-  "./js/data.js?v=68",
-  "./js/storage.js?v=68",
-  "./js/ui.js?v=68",
-  "./js/cache.js?v=68",
+  "./js/app.js?v=78",
+  "./js/config.js?v=78",
+  "./js/data.js?v=78",
+  "./js/storage.js?v=78",
+  "./js/ui.js?v=78",
+  "./js/cache.js?v=78",
 ];
 
 // Внешние ресурсы (CDN)

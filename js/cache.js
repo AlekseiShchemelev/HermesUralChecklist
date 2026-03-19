@@ -2,6 +2,7 @@
  * Модуль для работы с IndexedDB
  * Более быстрый и ёмкий чем localStorage
  */
+'use strict';
 
 const DB_NAME = 'ChecklistDB';
 const DB_VERSION = 1;

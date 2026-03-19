@@ -1,6 +1,8 @@
 /**
  * Модуль UI компонентов (оптимизированная версия)
  */
+'use strict';
+
 import CONFIG from './config.js';
 
 // Быстрое экранирование HTML без создания DOM
@@ -465,12 +467,12 @@ export class UI {
    * Показывает ошибку
    */
   static showError(container, message) {
-    const formattedMessage = escapeHtml(String(message)).replace(/\n/g, '<br>');
+    const safeMessage = escapeHtml(String(message));
     container.innerHTML = `
       <div class="error-message" style="text-align: left; font-family: monospace; white-space: pre-wrap;">
         <p>⚠️ Ошибка соединения с сервером Google Script</p>
         <hr style="margin: 10px 0; border: none; border-top: 1px solid #f5c6cb;">
-        <p>${formattedMessage}</p>
+        <p style="white-space: pre-wrap;">${safeMessage.replace(/\n/g, '<br>')}</p>
         <hr style="margin: 10px 0; border: none; border-top: 1px solid #f5c6cb;">
         <p><strong>Возможные решения:</strong></p>
         <ol style="margin-left: 20px; margin-top: 5px;">
