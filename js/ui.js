@@ -243,6 +243,14 @@ export class UI {
                 </select>
               </div>
               <div class="form-group">
+                <label for="edit_shiftType">День/Ночь</label>
+                <select id="edit_shiftType" required>
+                  <option value="">Выберите</option>
+                  <option value="День">День</option>
+                  <option value="Ночь">Ночь</option>
+                </select>
+              </div>
+              <div class="form-group">
                 <label for="edit_shop">Цех</label>
                 <input type="text" id="edit_shop" value="${defaultShop}" required>
               </div>
@@ -333,6 +341,7 @@ export class UI {
     }
 
     setValue('edit_shift', data.shift || data.Смена || data['СМЕНА'] || '');
+    setValue('edit_shiftType', data.shift_type || data.День_Ночь || data['ДЕНЬ_НОЧЬ'] || '');
     setValue('edit_shop', data.shop || data.Цех || data['ЦЕХ'] || '');
     setValue('edit_master', data.master || data.ФИО_мастера || data['ФИО_МАСТЕРА'] || '');
     setValue('edit_breakdowns', data.breakdowns || data.Поломки || data['ПОЛОМКИ_И_ПРОСТОИ'] || '');
@@ -394,12 +403,15 @@ export class UI {
       throw new Error('Некорректная смена');
     }
     
+    const shiftType = getValue('edit_shiftType');
+    
     const id = getValue('record_id') || null;
 
     const data = {
       id: id,
       date: formattedDate,
       shift: shift,
+      shift_type: shiftType,
       shop: getValue('edit_shop'),
       master: getValue('edit_master'),
       breakdowns: getValue('edit_breakdowns'),
@@ -562,6 +574,7 @@ export class UI {
     const shift = data.shift || data.Смена || data['СМЕНА'];
     const shop = data.shop || data.Цех || data['ЦЕХ'];
     const master = data.master || data.ФИО_мастера || data['ФИО_МАСТЕРА'];
+    const shiftType = data.shift_type || data.День_Ночь || data['ДЕНЬ_НОЧЬ'];
     
     // Форматируем дату
     let dateDisplay = '-';
@@ -647,6 +660,10 @@ export class UI {
               <div class="view-item">
                 <div class="view-item-label">Смена</div>
                 <div class="view-item-value">${shift || '-'}</div>
+              </div>
+              <div class="view-item">
+                <div class="view-item-label">День/Ночь</div>
+                <div class="view-item-value">${shiftType || '-'}</div>
               </div>
               <div class="view-item">
                 <div class="view-item-label">Цех</div>

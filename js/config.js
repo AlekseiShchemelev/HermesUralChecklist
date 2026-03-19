@@ -20,6 +20,8 @@ const CONFIG = {
   version: "2.0",
 
   // Секции данных
+
+
   sections: {
     people: [
       { id: "plasma_people", label: "Плазма", russianKey: "ПЛАЗМА_ЧЕЛ" },

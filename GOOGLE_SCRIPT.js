@@ -1,5 +1,5 @@
 const COLUMN_MAP = {
-  'ID': 'id', 'ДАТА': 'date', 'СМЕНА': 'shift', 'ЦЕХ': 'shop', 'ФИО_МАСТЕРА': 'master',
+  'ID': 'id', 'ДАТА': 'date', 'СМЕНА': 'shift', 'ДЕНЬ_НОЧЬ': 'shift_type', 'ЦЕХ': 'shop', 'ФИО_МАСТЕРА': 'master',
   'ПЛАЗМА_ЧЕЛ': 'plasma_people', 'СТРОЖКА_ЧЕЛ': 'strozka_people',
   'ЗАЧИСТКА_ПОД_СВАРКУ_ЧЕЛ': 'zachistka_people', 'АВТ_СВАРКА_ЧЕЛ': 'avtosvarka_people',
   'ПОЛОТЕР_ЧЕЛ': 'poloter_people', 'ШТАМП_500Т_СТАРЫЙ_ЧЕЛ': 'press_old_people',
@@ -30,6 +30,17 @@ function ensureHeaders(sheet) {
   // Если первая колонка пустая - добавляем ID
   if (!headers[0] || headers[0].toString().trim() === '') {
     sheet.getRange(1, 1).setValue('ID');
+  }
+  
+  // Проверяем наличие колонки ДЕНЬ_НОЧЬ (после СМЕНА)
+  const shiftIndex = headers.indexOf('СМЕНА');
+  if (shiftIndex !== -1) {
+    const dayNightIndex = shiftIndex + 1;
+    if (headers[dayNightIndex] !== 'ДЕНЬ_НОЧЬ') {
+      // Вставляем колонку ДЕНЬ_НОЧЬ
+      sheet.insertColumnAfter(shiftIndex + 1);
+      sheet.getRange(1, dayNightIndex + 1).setValue('ДЕНЬ_НОЧЬ');
+    }
   }
 }
 
@@ -154,7 +165,7 @@ function doPost(e) {
           const rowNum = i + 1;
           // Обновляем все поля по порядку колонок
           const updates = [
-            data.date, data.shift, data.shop, data.master,
+            data.date, data.shift, data.shift_type || '', data.shop, data.master,
             data.plasma_people || 0, data.strozka_people || 0, data.zachistka_people || 0,
             data.avtosvarka_people || 0, data.poloter_people || 0, data.press_old_people || 0,
             data.italy_people || 0, data.press_new_people || 0, data.otbortovka_people || 0,
@@ -181,7 +192,7 @@ function doPost(e) {
     const newId = maxId + 1;
     
     sheet.appendRow([
-      newId, data.date, data.shift, data.shop, data.master,
+      newId, data.date, data.shift, data.shift_type || '', data.shop, data.master,
       data.plasma_people || 0, data.strozka_people || 0, data.zachistka_people || 0,
       data.avtosvarka_people || 0, data.poloter_people || 0, data.press_old_people || 0,
       data.italy_people || 0, data.press_new_people || 0, data.otbortovka_people || 0,

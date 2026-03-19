@@ -84,6 +84,12 @@ export class DataManager {
                 if (String(rowShift) !== String(filters.shift)) return false;
               }
               
+              // Фильтр по День/Ночь (без учета регистра)
+              if (filters.shiftType) {
+                const rowShiftType = String(row.shift_type || row.День_Ночь || row['ДЕНЬ_НОЧЬ'] || '').trim().toLowerCase();
+                if (rowShiftType !== filters.shiftType.toLowerCase()) return false;
+              }
+              
               // Фильтр по цеху
               if (filters.shop) {
                 const rowShop = (row.shop || row.Цех || row['ЦЕХ'] || '').toLowerCase();
@@ -169,10 +175,12 @@ export class DataManager {
 
     const date = this.formatDate(getValue('date'));
     const shift = getValue('shift');
+    const shiftType = getValue('shiftType');
     
     const data = {
       date: date,
       shift: shift,
+      shift_type: shiftType,
       shop: getValue('shop'),
       master: getValue('master'),
       total_people: getNumber('total_people'),
@@ -324,7 +332,7 @@ export class DataManager {
    * Синхронная фильтрация (fallback)
    */
   filterSync(filters) {
-    const { dateFrom, dateTo, shift, shop, master } = filters;
+    const { dateFrom, dateTo, shift, shiftType, shop, master } = filters;
     
     // Парсим даты фильтра заранее (из YYYY-MM-DD в локальную дату)
     let filterFrom = null;
@@ -358,6 +366,12 @@ export class DataManager {
       if (shift) {
         const rowShift = row.shift || row.Смена || row['СМЕНА'];
         if (String(rowShift) !== String(shift)) return false;
+      }
+      
+      // Фильтр по День/Ночь (без учета регистра)
+      if (shiftType) {
+        const rowShiftType = (row.shift_type || row.День_Ночь || row['ДЕНЬ_НОЧЬ'] || '').toString().trim().toLowerCase();
+        if (rowShiftType !== shiftType.toLowerCase()) return false;
       }
       
       // Фильтр по цеху

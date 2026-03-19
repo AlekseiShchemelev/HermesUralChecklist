@@ -552,6 +552,7 @@ class App {
       dateFrom: document.getElementById('dateFrom').value,
       dateTo: document.getElementById('dateTo').value,
       shift: document.getElementById('filterShift').value,
+      shiftType: document.getElementById('filterShiftType')?.value,
       shop: document.getElementById('filterShop').value.trim(),
       master: document.getElementById('filterMaster').value.trim()
     };
@@ -752,9 +753,11 @@ class App {
     const reportDateTo = document.getElementById('reportDateTo');
     const reportDateFrom = document.getElementById('reportDateFrom');
     const reportMaster = document.getElementById('reportMaster');
+    const reportShiftType = document.getElementById('reportShiftType');
     
     if (reportDateTo) reportDateTo.valueAsDate = today;
     if (reportDateFrom) reportDateFrom.valueAsDate = fourDaysAgo;
+    if (reportShiftType) reportShiftType.value = '';
     if (reportMaster) reportMaster.value = '';
     
     const generateBtn = document.getElementById('generateReports');
@@ -822,6 +825,7 @@ class App {
     const dateFrom = document.getElementById('reportDateFrom')?.value;
     const dateTo = document.getElementById('reportDateTo')?.value;
     const shift = document.getElementById('reportShift')?.value;
+    const shiftType = document.getElementById('reportShiftType')?.value;
     const master = document.getElementById('reportMaster')?.value?.trim();
     
     return data.filter(row => {
@@ -848,6 +852,11 @@ class App {
         if (String(rowShift) !== String(shift)) return false;
       }
       
+      if (shiftType) {
+        const rowShiftType = (row.shift_type || row.День_Ночь || row['ДЕНЬ_НОЧЬ'] || '').toString().trim().toLowerCase();
+        if (rowShiftType !== shiftType.toLowerCase()) return false;
+      }
+      
       if (master) {
         const rowMaster = (row.master || row.ФИО_мастера || row['ФИО_МАСТЕРА'] || '').toLowerCase();
         if (!rowMaster.includes(master.toLowerCase())) return false;
@@ -868,6 +877,7 @@ class App {
     document.getElementById('reportDateFrom').valueAsDate = fourDaysAgo;
     document.getElementById('reportDateTo').valueAsDate = today;
     document.getElementById('reportShift').value = '';
+    document.getElementById('reportShiftType').value = '';
     document.getElementById('reportMaster').value = '';
     
     // Сбрасываем кэш графиков чтобы принудительно пересоздать их
