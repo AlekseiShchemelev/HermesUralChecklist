@@ -36,12 +36,12 @@
   
   <!-- Preload критических ресурсов -->
   <link rel="preload" href="css/main.css" as="style">
-  <link rel="preload" href="js/config.js?v=79" as="script" crossorigin>
-  <link rel="preload" href="js/storage.js?v=79" as="script" crossorigin>
-  <link rel="preload" href="js/data.js?v=79" as="script" crossorigin>
-  <link rel="preload" href="js/ui.js?v=79" as="script" crossorigin>
-  <link rel="preload" href="js/cache.js?v=79" as="script" crossorigin>
-  <link rel="preload" href="js/app.js?v=79" as="script" crossorigin>
+  <link rel="preload" href="js/config.js?v=80" as="script" crossorigin>
+  <link rel="preload" href="js/storage.js?v=80" as="script" crossorigin>
+  <link rel="preload" href="js/data.js?v=80" as="script" crossorigin>
+  <link rel="preload" href="js/ui.js?v=80" as="script" crossorigin>
+  <link rel="preload" href="js/cache.js?v=80" as="script" crossorigin>
+  <link rel="preload" href="js/app.js?v=80" as="script" crossorigin>
   
   <!-- Манифест PWA -->
   <link rel="manifest" href="manifest.json">
@@ -574,23 +574,6 @@
 
   <!-- Модальное окно редактирования будет добавлено динамически -->
 
-  <!-- Принудительное обновление Service Worker -->
-  <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./sw.js?v=79').then(reg => {
-        reg.addEventListener('updatefound', () => {
-          const newWorker = reg.installing;
-          newWorker.addEventListener('statechange', () => {
-            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              // Новый SW установлен, перезагружаем страницу
-              window.location.reload();
-            }
-          });
-        });
-      });
-    }
-  </script>
-  
-  <script type="module" src="js/app.js?v=79"></script>
+  <script type="module" src="js/app.js?v=80"></script>
 </body>
 </html>

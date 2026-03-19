@@ -4,7 +4,7 @@
  */
 'use strict';
 
-const VERSION = "79"; // <-- МЕНЯЙТЕ ЭТО ЧИСЛО ПРИ КАЖДОМ ОБНОВЛЕНИИ
+const VERSION = "80"; // <-- МЕНЯЙТЕ ЭТО ЧИСЛО ПРИ КАЖДОМ ОБНОВЛЕНИИ
 const CACHE_NAME = `checklist-v${VERSION}`;
 
 // Статические ресурсы для кэширования
@@ -12,12 +12,12 @@ const STATIC_ASSETS = [
   "./",
   "./index.html",
   "./css/main.css",
-  "./js/app.js?v=79",
-  "./js/config.js?v=79",
-  "./js/data.js?v=79",
-  "./js/storage.js?v=79",
-  "./js/ui.js?v=79",
-  "./js/cache.js?v=79",
+  "./js/app.js?v=80",
+  "./js/config.js?v=80",
+  "./js/data.js?v=80",
+  "./js/storage.js?v=80",
+  "./js/ui.js?v=80",
+  "./js/cache.js?v=80",
 ];
 
 // Внешние ресурсы (CDN)
