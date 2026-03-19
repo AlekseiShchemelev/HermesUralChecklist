@@ -1,18 +1,53 @@
-function makeJSON(data) {
-  return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
-}
+const COLUMN_MAP = {
+  'ID': 'id', 'ДАТА': 'date', 'СМЕНА': 'shift', 'ЦЕХ': 'shop', 'ФИО_МАСТЕРА': 'master',
+  'ПЛАЗМА_ЧЕЛ': 'plasma_people', 'СТРОЖКА_ЧЕЛ': 'strozka_people',
+  'ЗАЧИСТКА_ПОД_СВАРКУ_ЧЕЛ': 'zachistka_people', 'АВТ_СВАРКА_ЧЕЛ': 'avtosvarka_people',
+  'ПОЛОТЕР_ЧЕЛ': 'poloter_people', 'ШТАМП_500Т_СТАРЫЙ_ЧЕЛ': 'press_old_people',
+  'ИТАЛЬЯНЕЦ_ЧЕЛ': 'italy_people', 'ШТАМП_500Т_НОВЫЙ_ЧЕЛ': 'press_new_people',
+  'ОТБОРТОВКА_ЧЕЛ': 'otbortovka_people', 'КРОМКООБРЕЗНОЙ_СТАНОК_ЧЕЛ': 'kromko_people',
+  'КОТЕЛЬЩИК_ПРИЕМКА_ЧЕЛ': 'kotelshchik_people', 'РУЧНАЯ_СВАРКА_ЧЕЛ': 'ruchsvarka_people',
+  'ВСЕГО_ЧЕЛ': 'total_people', 'ПЛАЗМА_ЛИСТЫ': 'plasma_sheets',
+  'СТРОЖКА_ОТСТРОГАНО_СЕГМЕНТОВ': 'strozka_segments',
+  'АВТ_СВАРКА_ЗАВАРЕНО_КАРТ': 'avtosvarka_cards',
+  'ПОЛОТЕР_ПОЧИЩЕНО_КАРТ': 'poloter_cleaned',
+  'ЗАЧИСТКА_ПОД_СВАРКУ_ПОЧИЩЕНО_КАРТ': 'zachistka_cleaned',
+  'ОТШТАМПОВАНО_ПРЕСС_СТАРЫЙ': 'stamped_old', 'ОТШТАМПОВАНО_ИТАЛЬЯНЕЦ': 'stamped_italy',
+  'ОТШТАМПОВАНО_ПРЕСС_НОВЫЙ': 'stamped_new', 'КОМБИНИРОВАННЫХ_ДНИЩ': 'combined',
+  'РЕМОНТНЫХ_ДНИЩ': 'repair', 'ОТБОРТОВАННЫХ_ДНИЩ': 'flanged',
+  'ОБРЕЗАННЫХ_ДНИЩ': 'trimmed', 'УПАКОВАННЫХ_ДНИЩ': 'packed',
+  'ПАЧЕК_В_ПЛЕНКУ': 'film_packs', 'РАЗГРУЖЕННЫХ_МАШИН': 'unloaded',
+  'ОТГРУЖЕННЫХ_МАШИН': 'loaded', 'САДОК_МАЛАЯ_ПЕЧЬ': 'small_furnace',
+  'САДОК_БОЛЬШАЯ_ПЕЧЬ': 'large_furnace', 'ПОЛОМКИ_И_ПРОСТОИ': 'breakdowns',
+  'TIMESTAMP': 'timestamp'
+};
 
-function makeJSONP(data, callback) {
-  if (!callback || !/^[a-zA-Z0-9_]+$/.test(callback)) return makeJSON(data);
-  return ContentService.createTextOutput(callback + '(' + JSON.stringify(data) + ');').setMimeType(ContentService.MimeType.JAVASCRIPT);
+function doGet(e) {
+  try {
+    const params = e?.parameter || {};
+    const action = params.action;
+    const callback = params.callback;
+
+    if (action === 'auth') {
+      return authenticateUser(params.fio, params.password, callback);
+    }
+
+    if (action === 'get') {
+      return getData(callback);
+    }
+
+    return makeJSONP({result: 'error', message: 'Unknown action'}, callback);
+  } catch (error) {
+    return makeJSONP({result: 'error', message: error.toString()}, '');
+  }
 }
 
 function authenticateUser(fio, password, callback) {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const userSheet = ss.getSheetByName('Пользователи');
+    
     if (!userSheet) {
-      return makeJSONP({result: 'error', message: 'Список пользователей не найден'}, callback);
+      return makeJSONP({result: 'error', message: 'Лист "Пользователи" не найден'}, callback);
     }
     
     const data = userSheet.getDataRange().getValues();
@@ -22,13 +57,16 @@ function authenticateUser(fio, password, callback) {
     const roleIndex = headers.indexOf('РОЛЬ');
     
     if (fioIndex === -1 || passIndex === -1) {
-      return makeJSONP({result: 'error', message: 'Неверная структура таблицы'}, callback);
+      return makeJSONP({result: 'error', message: 'Колонки ФИО или ПАРОЛЬ не найдены'}, callback);
     }
     
     for (let i = 1; i < data.length; i++) {
       if (data[i][fioIndex] === fio && String(data[i][passIndex]) === String(password)) {
-        const user = {fio: data[i][fioIndex], role: roleIndex !== -1 ? data[i][roleIndex] : 'user'};
-        return makeJSONP({result: 'success', user: user}, callback);
+        const user = {
+          fio: data[i][fioIndex],
+          role: roleIndex !== -1 ? data[i][roleIndex] : 'user'
+        };
+        return makeJSONP({result: 'success', user}, callback);
       }
     }
     
@@ -38,55 +76,33 @@ function authenticateUser(fio, password, callback) {
   }
 }
 
-function doGet(e) {
+function getData(callback) {
   try {
-    // DEBUG: полный объект e
-    console.log('Full e:', JSON.stringify(e));
-    console.log('e.parameter:', JSON.stringify(e?.parameter));
-    console.log('e.queryString:', JSON.stringify(e?.queryString));
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getActiveSheet();
+    const data = sheet.getDataRange().getValues();
+    const rows = [];
     
-    // Пробуем получить параметры из queryString если parameter не работает
-    let params = e?.parameter;
-    if (!params && e?.queryString) {
-      params = {};
-      const pairs = e.queryString.split('&');
-      for (const pair of pairs) {
-        const [key, value] = pair.split('=');
-        params[key] = decodeURIComponent(value || '');
+    for (let i = 1; i < data.length; i++) {
+      const row = {id: String(data[i][0])};
+      for (let j = 1; j < data[0].length; j++) {
+        row[data[0][j]] = data[i][j];
       }
+      rows.push(row);
     }
     
-    console.log('Final params:', JSON.stringify(params));
-    
-    if (!params) return makeJSON({result: 'error', message: 'No parameters'});
-    
-    const action = params.action;
-    const callback = params.callback;
-    
-    if (action === 'auth') {
-      return authenticateUser(e.parameter.fio, e.parameter.password, callback);
-    }
-    
-    if (action === 'get') {
-      const ss = SpreadsheetApp.getActiveSpreadsheet();
-      const sheet = ss.getActiveSheet();
-      const data = sheet.getDataRange().getValues();
-      const rows = [];
-      
-      for (let i = 1; i < data.length; i++) {
-        const row = {id: String(data[i][0])};
-        for (let j = 1; j < data[0].length; j++) {
-          row[data[0][j]] = data[i][j];
-        }
-        rows.push(row);
-      }
-      return makeJSONP({result: 'success', data: rows}, callback);
-    }
-    
-    return makeJSONP({result: 'error', message: 'Unknown action'}, callback);
+    return makeJSONP({result: 'success', data: rows}, callback);
   } catch (error) {
-    return makeJSONP({result: 'error', message: error.toString()}, e?.parameter?.callback);
+    return makeJSONP({result: 'error', message: error.toString()}, callback);
   }
+}
+
+function makeJSONP(data, callback) {
+  const json = JSON.stringify(data);
+  if (!callback || !/^[a-zA-Z0-9_]+$/.test(callback)) {
+    return ContentService.createTextOutput(json).setMimeType(ContentService.MimeType.JSON);
+  }
+  return ContentService.createTextOutput(`${callback}(${json});`).setMimeType(ContentService.MimeType.JAVASCRIPT);
 }
 
 function doPost(e) {
@@ -142,4 +158,8 @@ function doPost(e) {
   } catch (error) {
     return makeJSON({result: 'error', message: error.toString()});
   }
+}
+
+function makeJSON(data) {
+  return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
 }

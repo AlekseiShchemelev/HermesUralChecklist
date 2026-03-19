@@ -65,9 +65,6 @@ class Auth {
       const random = Math.random().toString(36).substring(7);
       const url = `${CONFIG.appsScriptUrl}?action=auth&fio=${encodeURIComponent(fio)}&password=${encodeURIComponent(password)}&callback=${callbackName}&t=${timestamp}&r=${random}`;
       
-      // DEBUG
-      console.log('[Auth] Request URL:', url);
-
       return new Promise((resolve, reject) => {
         const timeout = setTimeout(() => {
           cleanup();
@@ -78,9 +75,6 @@ class Auth {
           clearTimeout(timeout);
           cleanup();
           
-          // DEBUG
-          console.log('[Auth] Server response:', response);
-
           if (response?.result === 'success' && response.user) {
             this.saveSession(response.user);
             resolve({ success: true, user: response.user });
