@@ -1701,7 +1701,7 @@ class App {
         label: "Ночь",
         data: nightData,
         borderColor: "#4B0082",
-        backgroundColor: "#ffffffff",
+        backgroundColor: "#4B0082",
         borderDash: [8, 4],
         fill: false,
         tension: 0.3,
