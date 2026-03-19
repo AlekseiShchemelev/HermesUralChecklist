@@ -112,11 +112,6 @@ export class UI {
     const html = [];
     html.push('<table class="data-table"><thead><tr>');
     
-    // Кнопки действий в начале
-    if (editable) {
-      html.push('<th class="actions-col">Действия</th>');
-    }
-    
     // Заголовки
     for (const h of displayHeaders) {
       html.push(`<th>${escapeHtml(h)}</th>`);
@@ -128,16 +123,10 @@ export class UI {
     const len = data.length;
     for (let i = 0; i < len; i++) {
       const row = data[i];
-      html.push('<tr>');
+      const rowId = escapeHtml(String(row.id || row.ID || i));
       
-      // Кнопки действий в начале строки
-      if (editable) {
-        const rowId = escapeHtml(String(row.id || row.ID || i));
-        html.push(`<td class="actions-cell">
-          <button class="btn btn-sm btn-edit" data-id="${rowId}" data-action="edit" title="Редактировать">✏️</button>
-          <button class="btn btn-sm btn-delete" data-id="${rowId}" data-action="delete" title="Удалить">🗑️</button>
-        </td>`);
-      }
+      // Строка кликабельная для просмотра
+      html.push(`<tr class="clickable-row" data-id="${rowId}" title="Нажмите для просмотра">`);
       
       for (const h of displayHeaders) {
         let val = row[h];
@@ -250,6 +239,7 @@ export class UI {
                   <option value="1">1</option>
                   <option value="2">2</option>
                   <option value="3">3</option>
+                  <option value="4">4</option>
                 </select>
               </div>
               <div class="form-group">
@@ -317,12 +307,28 @@ export class UI {
 
     setValue('record_id', data.id || data.ID || '');
 
-    // Дата
+    // Дата - поддержка DD.MM.YYYY и ISO формата (2026-03-16T19:00:00.000Z)
     if (data.date || data.Дата) {
       const dateStr = data.date || data.Дата;
-      const parts = dateStr.split('.');
-      if (parts.length === 3) {
-        setValue('edit_date', `${parts[2]}-${parts[1]}-${parts[0]}`);
+      let dateObj = null;
+      
+      if (dateStr.includes('T')) {
+        // ISO формат - конвертируем в локальную дату
+        const d = new Date(dateStr);
+        dateObj = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      } else {
+        // Формат DD.MM.YYYY
+        const parts = dateStr.split('.');
+        if (parts.length === 3) {
+          dateObj = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+        }
+      }
+      
+      if (dateObj) {
+        const yyyy = dateObj.getFullYear();
+        const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const dd = String(dateObj.getDate()).padStart(2, '0');
+        setValue('edit_date', `${yyyy}-${mm}-${dd}`);
       }
     }
 
@@ -340,13 +346,24 @@ export class UI {
     ];
 
     for (const field of allFields) {
+      // Сначала ищем по ID, потом по russianKey, потом похожий ключ
       let value = data[field.id];
-      if (value === undefined) {
-        const russianKey = Object.keys(data).find(k => 
-          k.toLowerCase().replace(/_/g, ' ') === field.label.toLowerCase()
-        );
-        value = russianKey ? data[russianKey] : 0;
+      
+      if ((value === undefined || value === null) && field.russianKey) {
+        value = data[field.russianKey];
       }
+      
+      if (value === undefined || value === null) {
+        // Ищем похожий ключ в данных
+        const foundKey = Object.keys(data).find(k => 
+          k.toUpperCase().includes(field.russianKey) ||
+          k.toLowerCase().includes(field.id.toLowerCase())
+        );
+        value = foundKey ? data[foundKey] : 0;
+      }
+      
+      console.log('Field:', field.id, 'value:', value, 'russianKey:', field.russianKey, 'data keys:', Object.keys(data).filter(k => k.includes('ПЛАЗМА') || k.includes('plasma')));
+      
       setValue(`edit_${field.id}`, value);
     }
   }
@@ -375,7 +392,7 @@ export class UI {
     const formattedDate = `${d}.${m}.${y}`;
     
     const shift = getValue('edit_shift');
-    if (!shift || !['1', '2', '3'].includes(shift)) {
+    if (!shift || !['1', '2', '3', '4'].includes(shift)) {
       throw new Error('Некорректная смена');
     }
     
@@ -469,6 +486,286 @@ export class UI {
       const confirmed = window.confirm(message);
       resolve(confirmed);
     });
+  }
+
+  /**
+   * Показывает глобальный индикатор загрузки
+   */
+  static showGlobalLoading(message = 'Загрузка...') {
+    const existing = document.getElementById('globalLoading');
+    if (existing) existing.remove();
+    
+    const overlay = document.createElement('div');
+    overlay.id = 'globalLoading';
+    overlay.className = 'global-loading';
+    overlay.innerHTML = `
+      <div class="loading-card">
+        <div class="loading-spinner"></div>
+        <p class="loading-text">${escapeHtml(message)}</p>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    return overlay;
+  }
+
+  /**
+   * Скрывает глобальный индикатор загрузки
+   */
+  static hideGlobalLoading() {
+    const overlay = document.getElementById('globalLoading');
+    if (overlay) {
+      overlay.remove();
+    }
+  }
+
+  /**
+   * Получает значение из данных записи (по ID или russianKey)
+   */
+  static getRecordValue(data, field) {
+    // Сначала ищем по ID
+    if (data[field.id] !== undefined && data[field.id] !== null && data[field.id] !== '') {
+      return Number(data[field.id]) || 0;
+    }
+    // Потом по russianKey
+    if (field.russianKey && data[field.russianKey] !== undefined && data[field.russianKey] !== null && data[field.russianKey] !== '') {
+      return Number(data[field.russianKey]) || 0;
+    }
+    // Ищем похожий ключ
+    const dataKeys = Object.keys(data);
+    for (const key of dataKeys) {
+      if (key.toUpperCase() === field.russianKey || 
+          key.toLowerCase().includes(field.id.toLowerCase())) {
+        const val = data[key];
+        if (val !== undefined && val !== null && val !== '') {
+          return Number(val) || 0;
+        }
+      }
+    }
+    return 0;
+  }
+
+  /**
+   * Создаёт окно просмотра записи
+   */
+  static createViewModal(data, options = {}) {
+    const { onEdit, onDelete, onClose } = options;
+    const modalId = 'viewModal';
+    
+    // Удаляем существующее модальное окно
+    const existing = document.getElementById(modalId);
+    if (existing) existing.remove();
+    
+    const modal = document.createElement('div');
+    modal.id = modalId;
+    modal.className = 'modal-overlay view-modal';
+    
+    // Форматируем дату
+    let dateDisplay = '-';
+    if (data.date || data.Дата) {
+      const dateStr = data.date || data.Дата;
+      if (dateStr.includes('T')) {
+        const d = new Date(dateStr);
+        dateDisplay = d.toLocaleDateString('ru-RU');
+      } else {
+        dateDisplay = dateStr;
+      }
+    }
+    
+    // Генерируем секции данных
+    const peopleSection = CONFIG.sections.people.map(p => {
+      const value = this.getRecordValue(data, p);
+      if (value > 0) {
+        return `
+          <div class="view-item">
+            <div class="view-item-label">${escapeHtml(p.label)}</div>
+            <div class="view-item-value">${value} чел.</div>
+          </div>
+        `;
+      }
+      return '';
+    }).filter(Boolean).join('') || '<p style="color: var(--text-secondary);">Нет данных</p>';
+    
+    const productionSection = CONFIG.sections.production.map(p => {
+      const value = this.getRecordValue(data, p);
+      if (value > 0) {
+        return `
+          <div class="view-item">
+            <div class="view-item-label">${escapeHtml(p.label)}</div>
+            <div class="view-item-value">${value}</div>
+          </div>
+        `;
+      }
+      return '';
+    }).filter(Boolean).join('') || '<p style="color: var(--text-secondary);">Нет данных</p>';
+    
+    const endsSection = CONFIG.sections.ends.map(p => {
+      const value = this.getRecordValue(data, p);
+      if (value > 0) {
+        return `
+          <div class="view-item">
+            <div class="view-item-label">${escapeHtml(p.label)}</div>
+            <div class="view-item-value">${value}</div>
+          </div>
+        `;
+      }
+      return '';
+    }).filter(Boolean).join('') || '<p style="color: var(--text-secondary);">Нет данных</p>';
+    
+    const logisticsSection = CONFIG.sections.logistics.map(p => {
+      const value = this.getRecordValue(data, p);
+      if (value > 0) {
+        return `
+          <div class="view-item">
+            <div class="view-item-label">${escapeHtml(p.label)}</div>
+            <div class="view-item-value">${value}</div>
+          </div>
+        `;
+      }
+      return '';
+    }).filter(Boolean).join('') || '<p style="color: var(--text-secondary);">Нет данных</p>';
+    
+    const breakdowns = data.breakdowns || data.Поломки || '';
+    
+    modal.innerHTML = `
+      <div class="modal">
+        <div class="view-modal-header">
+          <h3>📋 Просмотр записи #${data.id || data.ID}</h3>
+          <button class="modal-close" data-action="close" style="background: rgba(255,255,255,0.2); color: white; border: none; width: 36px; height: 36px; border-radius: 50%; cursor: pointer; font-size: 20px; display: flex; align-items: center; justify-content: center; transition: var(--transition);">&times;</button>
+        </div>
+        <div class="view-modal-body">
+          <!-- Основная информация -->
+          <div class="view-section">
+            <div class="view-section-title">📅 Основная информация</div>
+            <div class="view-grid">
+              <div class="view-item">
+                <div class="view-item-label">Дата</div>
+                <div class="view-item-value">${dateDisplay}</div>
+              </div>
+              <div class="view-item">
+                <div class="view-item-label">Смена</div>
+                <div class="view-item-value">${data.shift || data.Смена || '-'}</div>
+              </div>
+              <div class="view-item">
+                <div class="view-item-label">Цех</div>
+                <div class="view-item-value">${escapeHtml(data.shop || data.Цех || '-')}</div>
+              </div>
+              <div class="view-item">
+                <div class="view-item-label">Мастер</div>
+                <div class="view-item-value">${escapeHtml(data.master || data.ФИО_мастера || '-')}</div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Количество человек -->
+          <div class="view-section">
+            <div class="view-section-title">👥 Количество человек по участкам</div>
+            <div class="view-grid">
+              ${peopleSection}
+            </div>
+          </div>
+          
+          <!-- Производственные показатели -->
+          <div class="view-section">
+            <div class="view-section-title">🏭 Производственные показатели</div>
+            <div class="view-grid">
+              ${productionSection}
+            </div>
+          </div>
+          
+          <!-- Днища -->
+          <div class="view-section">
+            <div class="view-section-title">🔧 Готовая продукция (днища)</div>
+            <div class="view-grid">
+              ${endsSection}
+            </div>
+          </div>
+          
+          <!-- Логистика -->
+          <div class="view-section">
+            <div class="view-section-title">🚛 Логистика и термообработка</div>
+            <div class="view-grid">
+              ${logisticsSection}
+            </div>
+          </div>
+          
+          <!-- Поломки -->
+          ${breakdowns ? `
+          <div class="view-section">
+            <div class="view-section-title">⚠️ Поломки и простои</div>
+            <div style="background: #fef3c7; padding: 16px; border-radius: var(--radius-md); border-left: 4px solid #f59e0b;">
+              <p style="margin: 0; color: #92400e; line-height: 1.6;">${escapeHtml(breakdowns).replace(/\n/g, '<br>')}</p>
+            </div>
+          </div>
+          ` : ''}
+        </div>
+        <div class="view-modal-footer">
+          <button class="btn btn-primary" data-action="edit" style="flex: 1;">
+            <span>✏️</span> Редактировать
+          </button>
+          <button class="btn btn-danger" data-action="delete" style="flex: 1;">
+            <span>🗑️</span> Удалить
+          </button>
+          <button class="btn btn-secondary" data-action="close" style="flex: 1;">
+            <span>✕</span> Закрыть
+          </button>
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Привязываем обработчики
+    const bindActions = () => {
+      const editBtn = modal.querySelector('[data-action="edit"]');
+      const deleteBtn = modal.querySelector('[data-action="delete"]');
+      const closeBtn = modal.querySelector('[data-action="close"]');
+      
+      if (editBtn && onEdit) {
+        editBtn.onclick = () => {
+          this.closeModal(modalId);
+          onEdit();
+        };
+      }
+      
+      if (deleteBtn && onDelete) {
+        deleteBtn.onclick = () => {
+          this.closeModal(modalId);
+          onDelete();
+        };
+      }
+      
+      const closeModal = () => {
+        this.closeModal(modalId);
+        if (onClose) onClose();
+      };
+      
+      if (closeBtn) {
+        closeBtn.onclick = closeModal;
+      }
+      
+      // Закрытие по клику вне окна
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+          closeModal();
+        }
+      });
+      
+      // Закрытие по Escape
+      const closeOnEscape = (e) => {
+        if (e.key === 'Escape') {
+          document.removeEventListener('keydown', closeOnEscape);
+          closeModal();
+        }
+      };
+      document.addEventListener('keydown', closeOnEscape);
+    };
+    
+    bindActions();
+    
+    // Показываем с небольшой задержкой для анимации
+    requestAnimationFrame(() => modal.classList.add('active'));
+    
+    return modal;
   }
 }
 

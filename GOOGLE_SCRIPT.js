@@ -21,6 +21,18 @@ const COLUMN_MAP = {
   'TIMESTAMP': 'timestamp'
 };
 
+/**
+ * Проверяет и исправляет заголовки таблицы
+ */
+function ensureHeaders(sheet) {
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  
+  // Если первая колонка пустая - добавляем ID
+  if (!headers[0] || headers[0].toString().trim() === '') {
+    sheet.getRange(1, 1).setValue('ID');
+  }
+}
+
 function doGet(e) {
   try {
     const params = e?.parameter || {};
@@ -80,13 +92,21 @@ function getData(callback) {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const sheet = ss.getActiveSheet();
+    
+    // Проверяем и исправляем заголовки
+    ensureHeaders(sheet);
+    
     const data = sheet.getDataRange().getValues();
     const rows = [];
+    const headers = data[0];
+    
+    // Логируем заголовки для отладки
+    console.log('Sheet headers:', headers.join(', '));
     
     for (let i = 1; i < data.length; i++) {
       const row = {id: String(data[i][0])};
-      for (let j = 1; j < data[0].length; j++) {
-        row[data[0][j]] = data[i][j];
+      for (let j = 1; j < headers.length; j++) {
+        row[headers[j]] = data[i][j];
       }
       rows.push(row);
     }
@@ -111,6 +131,9 @@ function doPost(e) {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const sheet = ss.getActiveSheet();
     
+    // Проверяем и исправляем заголовки
+    ensureHeaders(sheet);
+    
     if (data.__delete_id) {
       const values = sheet.getDataRange().getValues();
       for (let i = 1; i < values.length; i++) {
@@ -124,9 +147,26 @@ function doPost(e) {
     
     if (data.id) {
       const values = sheet.getDataRange().getValues();
+      const headers = values[0];
+      
       for (let i = 1; i < values.length; i++) {
         if (String(values[i][0]) === String(data.id)) {
-          sheet.getRange(i + 1, 2, 1, 4).setValues([[data.date, data.shift, data.shop, data.master]]);
+          const rowNum = i + 1;
+          // Обновляем все поля по порядку колонок
+          const updates = [
+            data.date, data.shift, data.shop, data.master,
+            data.plasma_people || 0, data.strozka_people || 0, data.zachistka_people || 0,
+            data.avtosvarka_people || 0, data.poloter_people || 0, data.press_old_people || 0,
+            data.italy_people || 0, data.press_new_people || 0, data.otbortovka_people || 0,
+            data.kromko_people || 0, data.kotelshchik_people || 0, data.ruchsvarka_people || 0,
+            data.total_people || 0, data.plasma_sheets || 0, data.strozka_segments || 0,
+            data.avtosvarka_cards || 0, data.poloter_cleaned || 0, data.zachistka_cleaned || 0,
+            data.stamped_old || 0, data.stamped_italy || 0, data.stamped_new || 0,
+            data.combined || 0, data.repair || 0, data.flanged || 0, data.trimmed || 0,
+            data.packed || 0, data.film_packs || 0, data.unloaded || 0, data.loaded || 0,
+            data.small_furnace || 0, data.large_furnace || 0, data.breakdowns || '', new Date()
+          ];
+          sheet.getRange(rowNum, 2, 1, updates.length).setValues([updates]);
           return makeJSON({result: 'success'});
         }
       }

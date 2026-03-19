@@ -441,6 +441,50 @@ class App {
   }
 
   /**
+   * Принудительно обновляет данные из Google Sheets
+   */
+  async refreshDataFromSheet(showLoading = true) {
+    if (showLoading) {
+      UI.showGlobalLoading('Обновление данных из таблицы...');
+    }
+    
+    try {
+      // Очищаем кэш
+      this.storage.clearCache();
+      await indexedCache.clear();
+      
+      // Загружаем свежие данные
+      const data = await this.storage.load();
+      
+      // Сохраняем в IndexedDB
+      await indexedCache.setRecords(data);
+      
+      this.pagination.allData = data;
+      this.pagination.currentPage = 0;
+      this.dataManager.data = data;
+      
+      this.renderPaginatedTable();
+      
+      if (showLoading) {
+        UI.hideGlobalLoading();
+      }
+      
+      const statusEl = document.getElementById('viewStatus');
+      UI.showStatus(
+        `✅ Данные обновлены из таблицы (${data.length} записей)`,
+        'success',
+        statusEl
+      );
+    } catch (error) {
+      if (showLoading) {
+        UI.hideGlobalLoading();
+      }
+      const container = document.getElementById('tableContainer');
+      UI.showError(container, `Ошибка обновления: ${error.message}`);
+    }
+  }
+
+  /**
    * Отображает таблицу с пагинацией (оптимизированная)
    */
   renderPaginatedTable() {
@@ -470,6 +514,9 @@ class App {
       onEdit: (id) => this.editRecord(id),
       onDelete: (id) => this.deleteRecord(id)
     });
+    
+    // Привязываем обработчики к кнопкам
+    this.bindTableActions(container);
     
     if (loadMoreContainer) {
       const hasMore = startIndex > 0;
@@ -512,6 +559,9 @@ class App {
       onEdit: (id) => this.editRecord(id),
       onDelete: (id) => this.deleteRecord(id)
     });
+    
+    // Привязываем обработчики к кнопкам
+    this.bindTableActions(container);
   }
 
   /**
@@ -561,10 +611,48 @@ class App {
     document.addEventListener('keydown', closeOnEscape);
   }
 
+  /**
+   * Привязывает обработчики к строкам таблицы (клик для просмотра)
+   */
+  bindTableActions(container) {
+    container.addEventListener('click', (e) => {
+      const row = e.target.closest('.clickable-row');
+      if (!row) return;
+      
+      const id = row.dataset.id;
+      if (!id) return;
+      
+      this.viewRecord(id);
+    });
+  }
+
+  /**
+   * Открывает окно просмотра записи
+   */
+  viewRecord(id) {
+    const record = this.dataManager.data.find(r => {
+      const rowId = r.id || r.ID || r['ID'];
+      return String(rowId) === String(id);
+    });
+    
+    if (!record) {
+      alert('Запись не найдена');
+      return;
+    }
+    
+    // Открываем окно просмотра
+    UI.createViewModal(record, {
+      onEdit: () => this.editRecord(id),
+      onDelete: () => this.deleteRecord(id),
+      onClose: () => {} // Можно добавить дополнительные действия при закрытии
+    });
+  }
+
   editRecord(id) {
-    const record = this.dataManager.data.find(r => 
-      (r.id || r.ID || r['ID']) == id
-    );
+    const record = this.dataManager.data.find(r => {
+      const rowId = r.id || r.ID || r['ID'];
+      return String(rowId) === String(id);
+    });
     
     if (record) {
       this.openEditModal(record);
@@ -587,27 +675,22 @@ class App {
     }
     
     const isEdit = !!data.id;
-    const saveBtn = document.getElementById('modalSaveBtn');
-    const modalBody = document.querySelector('.modal-body');
     
-    // Показываем индикатор загрузки
-    if (saveBtn) UI.setButtonLoading(saveBtn, true, 'Сохранение...');
-    const overlay = UI.showLoadingOverlay(modalBody, 'Сохранение данных...');
+    // Показываем глобальный индикатор загрузки
+    UI.showGlobalLoading(isEdit ? 'Обновление записи...' : 'Создание записи...');
     
     try {
       const result = await this.storage.save(data);
       
       UI.closeModal();
-      await this.loadData();
+      // Обновляем данные из таблицы
+      await this.refreshDataFromSheet();
       
+      UI.hideGlobalLoading();
       const actionText = isEdit ? 'обновлена' : 'добавлена';
       UI.showStatus(`Запись ${actionText}!`, 'success', document.getElementById('viewStatus'));
-      
-      // Инвалидируем кэши
-      await indexedCache.clear();
     } catch (error) {
-      UI.hideLoadingOverlay(modalBody);
-      if (saveBtn) UI.setButtonLoading(saveBtn, false);
+      UI.hideGlobalLoading();
       UI.showStatus('Ошибка сохранения: ' + error.message, 'error', document.getElementById('viewStatus'));
     }
   }
@@ -616,16 +699,16 @@ class App {
     const confirmed = await UI.confirm('Вы уверены, что хотите удалить эту запись?');
     
     if (confirmed) {
-      const container = document.getElementById('tableContainer');
-      const overlay = UI.showLoadingOverlay(container, 'Удаление записи...');
+      UI.showGlobalLoading('Удаление записи...');
       
       try {
         await this.storage.delete(id);
-        await this.loadData();
+        // Обновляем данные из таблицы
+        await this.refreshDataFromSheet();
+        UI.hideGlobalLoading();
         UI.showStatus('Запись удалена', 'success', document.getElementById('viewStatus'));
-        await indexedCache.clear();
       } catch (error) {
-        UI.hideLoadingOverlay(container);
+        UI.hideGlobalLoading();
         alert('Ошибка удаления: ' + error.message);
       }
     }
@@ -663,9 +746,11 @@ class App {
     
     const reportDateTo = document.getElementById('reportDateTo');
     const reportDateFrom = document.getElementById('reportDateFrom');
+    const reportMaster = document.getElementById('reportMaster');
     
     if (reportDateTo) reportDateTo.valueAsDate = today;
     if (reportDateFrom) reportDateFrom.valueAsDate = fourDaysAgo;
+    if (reportMaster) reportMaster.value = '';
     
     const generateBtn = document.getElementById('generateReports');
     if (generateBtn) {
@@ -732,6 +817,7 @@ class App {
     const dateFrom = document.getElementById('reportDateFrom')?.value;
     const dateTo = document.getElementById('reportDateTo')?.value;
     const shift = document.getElementById('reportShift')?.value;
+    const master = document.getElementById('reportMaster')?.value?.trim();
     
     return data.filter(row => {
       const rowDateStr = row.date || row.Дата || row['ДАТА'];
@@ -757,6 +843,11 @@ class App {
         if (String(rowShift) !== String(shift)) return false;
       }
       
+      if (master) {
+        const rowMaster = (row.master || row.ФИО_мастера || row['ФИО_МАСТЕРА'] || '').toLowerCase();
+        if (!rowMaster.includes(master.toLowerCase())) return false;
+      }
+      
       return true;
     });
   }
@@ -772,6 +863,7 @@ class App {
     document.getElementById('reportDateFrom').valueAsDate = fourDaysAgo;
     document.getElementById('reportDateTo').valueAsDate = today;
     document.getElementById('reportShift').value = '';
+    document.getElementById('reportMaster').value = '';
     
     // Сбрасываем кэш графиков чтобы принудительно пересоздать их
     this.chartDataHash = null;
@@ -899,7 +991,11 @@ class App {
    */
   renderChartsLazy(data, dataChanged) {
     const chartsConfig = [
-      { id: 'productionChart', fn: () => this.createProductionChart(data, dataChanged) },
+      { id: 'plasmaChart', fn: () => this.createPlasmaChart(data, dataChanged) },
+      { id: 'strozkaChart', fn: () => this.createStrozkaChart(data, dataChanged) },
+      { id: 'zachistkaChart', fn: () => this.createZachistkaChart(data, dataChanged) },
+      { id: 'avtosvarkaChart', fn: () => this.createAvtosvarkaChart(data, dataChanged) },
+      { id: 'poloterChart', fn: () => this.createPoloterChart(data, dataChanged) },
       { id: 'logisticsChart', fn: () => this.createLogisticsChart(data, dataChanged) },
       { id: 'furnaceChart', fn: () => this.createFurnaceChart(data, dataChanged) },
       { id: 'endsChart', fn: () => this.createEndsChart(data, dataChanged) },
@@ -942,60 +1038,221 @@ class App {
     return date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
   }
 
-  createProductionChart(data, dataChanged) {
-    const ctx = document.getElementById('productionChart');
+  createPlasmaChart(data, dataChanged) {
+    const ctx = document.getElementById('plasmaChart');
     if (!ctx) return;
     
     const labels = data.map(d => this.formatChartDate(d.date || d.Дата || d['ДАТА']));
-    const plasmaData = data.map(d => this.getValue(d, 'plasma_sheets', 'ПЛАЗМА_ЛИСТЫ'));
-    const strozkaData = data.map(d => this.getValue(d, 'strozka_segments', 'СТРОЖКА_ОТСТРОГАНО_СЕГМЕНТОВ'));
-    const svarkaData = data.map(d => this.getValue(d, 'avtosvarka_cards', 'АВТ_СВАРКА_ЗАВАРЕНО_КАРТ'));
-    const poloterData = data.map(d => this.getValue(d, 'poloter_cleaned', 'ПОЛОТЕР_ПОЧИЩЕНО_КАРТ'));
-    const zachistkaData = data.map(d => this.getValue(d, 'zachistka_cleaned', 'ЗАЧИСТКА_ПОД_СВАРКУ_ПОЧИЩЕНО_КАРТ'));
+    const plasmaData = data.map(d => this.getValue(d, 'plasma_sheets', 'ПЛАЗМА_ЛИСТЫ', 'Плазма_порезано', 'Плазма_порезано_листов'));
     
-    // Обновляем существующий или создаём новый
-    if (this.charts.production && !dataChanged) {
-      return; // Данные не изменились
-    }
+    if (this.charts.plasma && !dataChanged) return;
     
-    if (this.charts.production) {
-      this.charts.production.data.labels = labels;
-      this.charts.production.data.datasets[0].data = plasmaData;
-      this.charts.production.data.datasets[1].data = strozkaData;
-      this.charts.production.data.datasets[2].data = svarkaData;
-      this.charts.production.data.datasets[3].data = poloterData;
-      this.charts.production.data.datasets[4].data = zachistkaData;
-      this.charts.production.update('none');
+    if (this.charts.plasma) {
+      this.charts.plasma.data.labels = labels;
+      this.charts.plasma.data.datasets[0].data = plasmaData;
+      this.charts.plasma.update('none');
       return;
     }
     
-    this.charts.production = new Chart(ctx, {
+    this.charts.plasma = new Chart(ctx, {
       type: 'bar',
       data: {
         labels: labels,
-        datasets: [
-          { label: 'Плазма (листы)', data: plasmaData, backgroundColor: '#FF6384', borderRadius: 4 },
-          { label: 'Строжка (сегменты)', data: strozkaData, backgroundColor: '#36A2EB', borderRadius: 4 },
-          { label: 'Авт. сварка (карты)', data: svarkaData, backgroundColor: '#FFCE56', borderRadius: 4 },
-          { label: 'Полотер (карты)', data: poloterData, backgroundColor: '#4BC0C0', borderRadius: 4 },
-          { label: 'Зачистка (карты)', data: zachistkaData, backgroundColor: '#9966FF', borderRadius: 4 }
-        ]
+        datasets: [{
+          label: 'Порезано листов',
+          data: plasmaData,
+          backgroundColor: '#FF6384',
+          borderRadius: 4,
+          borderWidth: 0
+        }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        animation: false, // Отключаем анимацию для производительности
+        animation: false,
         plugins: {
-          title: { display: true, text: 'Производственные показатели по дням', font: { size: 16 } }
+          legend: { display: false },
+          title: { display: false }
         },
         scales: {
-          x: { title: { display: true, text: 'Дата' }, grid: { display: false } },
-          y: { beginAtZero: true, title: { display: true, text: 'Количество' } }
+          x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+          y: { beginAtZero: true, title: { display: true, text: 'Кол-во' } }
+        }
+      }
+    });
+  }
+
+  createStrozkaChart(data, dataChanged) {
+    const ctx = document.getElementById('strozkaChart');
+    if (!ctx) return;
+    
+    const labels = data.map(d => this.formatChartDate(d.date || d.Дата || d['ДАТА']));
+    const strozkaData = data.map(d => this.getValue(d, 'strozka_segments', 'СТРОЖКА_ОТСТРОГАНО_СЕГМЕНТОВ'));
+    
+    if (this.charts.strozka && !dataChanged) return;
+    
+    if (this.charts.strozka) {
+      this.charts.strozka.data.labels = labels;
+      this.charts.strozka.data.datasets[0].data = strozkaData;
+      this.charts.strozka.update('none');
+      return;
+    }
+    
+    this.charts.strozka = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Отстрогано сегментов',
+          data: strozkaData,
+          backgroundColor: '#36A2EB',
+          borderRadius: 4,
+          borderWidth: 0
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        plugins: {
+          legend: { display: false },
+          title: { display: false }
         },
-        decimation: {
-          enabled: true,
-          algorithm: 'lttb',
-          samples: 30
+        scales: {
+          x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+          y: { beginAtZero: true, title: { display: true, text: 'Кол-во' } }
+        }
+      }
+    });
+  }
+
+  createZachistkaChart(data, dataChanged) {
+    const ctx = document.getElementById('zachistkaChart');
+    if (!ctx) return;
+    
+    const labels = data.map(d => this.formatChartDate(d.date || d.Дата || d['ДАТА']));
+    const zachistkaData = data.map(d => this.getValue(d, 'zachistka_cleaned', 'ЗАЧИСТКА_ПОД_СВАРКУ_ПОЧИЩЕНО_КАРТ'));
+    
+    if (this.charts.zachistka && !dataChanged) return;
+    
+    if (this.charts.zachistka) {
+      this.charts.zachistka.data.labels = labels;
+      this.charts.zachistka.data.datasets[0].data = zachistkaData;
+      this.charts.zachistka.update('none');
+      return;
+    }
+    
+    this.charts.zachistka = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Почищено карт',
+          data: zachistkaData,
+          backgroundColor: '#4BC0C0',
+          borderRadius: 4,
+          borderWidth: 0
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        plugins: {
+          legend: { display: false },
+          title: { display: false }
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+          y: { beginAtZero: true, title: { display: true, text: 'Кол-во' } }
+        }
+      }
+    });
+  }
+
+  createAvtosvarkaChart(data, dataChanged) {
+    const ctx = document.getElementById('avtosvarkaChart');
+    if (!ctx) return;
+    
+    const labels = data.map(d => this.formatChartDate(d.date || d.Дата || d['ДАТА']));
+    const svarkaData = data.map(d => this.getValue(d, 'avtosvarka_cards', 'АВТ_СВАРКА_ЗАВАРЕНО_КАРТ'));
+    
+    if (this.charts.avtosvarka && !dataChanged) return;
+    
+    if (this.charts.avtosvarka) {
+      this.charts.avtosvarka.data.labels = labels;
+      this.charts.avtosvarka.data.datasets[0].data = svarkaData;
+      this.charts.avtosvarka.update('none');
+      return;
+    }
+    
+    this.charts.avtosvarka = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Заварено карт',
+          data: svarkaData,
+          backgroundColor: '#FFCE56',
+          borderRadius: 4,
+          borderWidth: 0
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        plugins: {
+          legend: { display: false },
+          title: { display: false }
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+          y: { beginAtZero: true, title: { display: true, text: 'Кол-во' } }
+        }
+      }
+    });
+  }
+
+  createPoloterChart(data, dataChanged) {
+    const ctx = document.getElementById('poloterChart');
+    if (!ctx) return;
+    
+    const labels = data.map(d => this.formatChartDate(d.date || d.Дата || d['ДАТА']));
+    const poloterData = data.map(d => this.getValue(d, 'poloter_cleaned', 'ПОЛОТЕР_ПОЧИЩЕНО_КАРТ'));
+    
+    if (this.charts.poloter && !dataChanged) return;
+    
+    if (this.charts.poloter) {
+      this.charts.poloter.data.labels = labels;
+      this.charts.poloter.data.datasets[0].data = poloterData;
+      this.charts.poloter.update('none');
+      return;
+    }
+    
+    this.charts.poloter = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Почищено карт',
+          data: poloterData,
+          backgroundColor: '#9966FF',
+          borderRadius: 4,
+          borderWidth: 0
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        plugins: {
+          legend: { display: false },
+          title: { display: false }
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+          y: { beginAtZero: true, title: { display: true, text: 'Кол-во' } }
         }
       }
     });

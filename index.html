@@ -242,16 +242,16 @@
               <input type="number" id="strozka_segments" min="0" value="0">
             </div>
             <div class="form-group">
+              <label for="zachistka_cleaned">Зачистка под сварку: почищено карт</label>
+              <input type="number" id="zachistka_cleaned" min="0" value="0">
+            </div>
+            <div class="form-group">
               <label for="avtosvarka_cards">Авт. сварка: заварено карт</label>
               <input type="number" id="avtosvarka_cards" min="0" value="0">
             </div>
             <div class="form-group">
               <label for="poloter_cleaned">Полотер: почищено карт</label>
               <input type="number" id="poloter_cleaned" min="0" value="0">
-            </div>
-            <div class="form-group">
-              <label for="zachistka_cleaned">Зачистка под сварку: почищено карт</label>
-              <input type="number" id="zachistka_cleaned" min="0" value="0">
             </div>
           </div>
         </div>
@@ -438,6 +438,10 @@
               <option value="4">4</option>
             </select>
           </div>
+          <div class="filter-group">
+            <label>ФИО мастера</label>
+            <input type="text" id="reportMaster" placeholder="часть фамилии">
+          </div>
           <div class="filter-actions">
             <button type="button" class="btn btn-secondary" id="resetReportFilters">Сбросить</button>
           </div>
@@ -446,11 +450,48 @@
           </div>
         </div>
 
-        <!-- График: Производственные показатели -->
+        <!-- Графики: Производственные показатели по отдельности -->
         <div class="report-section" style="margin-bottom: 40px;">
-          <h3>🏭 Производственные показатели</h3>
-          <div style="height: 400px; margin: 20px 0;">
-            <canvas id="productionChart"></canvas>
+          <h3>🏭 Производственные показатели по участкам</h3>
+          
+          <!-- График 1: Плазма -->
+          <div class="chart-container" style="margin-bottom: 30px;">
+            <h4 style="color: var(--primary); margin-bottom: 10px;">🔴 Плазма (листы)</h4>
+            <div style="height: 300px;">
+              <canvas id="plasmaChart"></canvas>
+            </div>
+          </div>
+          
+          <!-- График 2: Строжка -->
+          <div class="chart-container" style="margin-bottom: 30px;">
+            <h4 style="color: var(--primary); margin-bottom: 10px;">🔵 Строжка (сегменты)</h4>
+            <div style="height: 300px;">
+              <canvas id="strozkaChart"></canvas>
+            </div>
+          </div>
+          
+          <!-- График 3: Зачистка -->
+          <div class="chart-container" style="margin-bottom: 30px;">
+            <h4 style="color: var(--primary); margin-bottom: 10px;">🟢 Зачистка под сварку (карты)</h4>
+            <div style="height: 300px;">
+              <canvas id="zachistkaChart"></canvas>
+            </div>
+          </div>
+          
+          <!-- График 4: Автоматическая сварка -->
+          <div class="chart-container" style="margin-bottom: 30px;">
+            <h4 style="color: var(--primary); margin-bottom: 10px;">🟡 Авт. сварка (карты)</h4>
+            <div style="height: 300px;">
+              <canvas id="avtosvarkaChart"></canvas>
+            </div>
+          </div>
+          
+          <!-- График 5: Полотер -->
+          <div class="chart-container" style="margin-bottom: 30px;">
+            <h4 style="color: var(--primary); margin-bottom: 10px;">🟣 Полотер (карты)</h4>
+            <div style="height: 300px;">
+              <canvas id="poloterChart"></canvas>
+            </div>
           </div>
         </div>
 
