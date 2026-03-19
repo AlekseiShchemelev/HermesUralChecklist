@@ -308,15 +308,15 @@ export class UI {
     setValue('record_id', data.id || data.ID || '');
 
     // Дата - поддержка DD.MM.YYYY и ISO формата (2026-03-16T19:00:00.000Z)
-    if (data.date || data.Дата) {
-      const dateStr = data.date || data.Дата;
+    const dateStr = data.date || data.Дата || data['ДАТА'];
+    if (dateStr) {
       let dateObj = null;
       
-      if (dateStr.includes('T')) {
+      if (typeof dateStr === 'string' && dateStr.includes('T')) {
         // ISO формат - конвертируем в локальную дату
         const d = new Date(dateStr);
         dateObj = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-      } else {
+      } else if (typeof dateStr === 'string' && dateStr.includes('.')) {
         // Формат DD.MM.YYYY
         const parts = dateStr.split('.');
         if (parts.length === 3) {
@@ -324,7 +324,7 @@ export class UI {
         }
       }
       
-      if (dateObj) {
+      if (dateObj && !isNaN(dateObj.getTime())) {
         const yyyy = dateObj.getFullYear();
         const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
         const dd = String(dateObj.getDate()).padStart(2, '0');
@@ -332,10 +332,10 @@ export class UI {
       }
     }
 
-    setValue('edit_shift', data.shift || data.Смена || '');
-    setValue('edit_shop', data.shop || data.Цех || '');
-    setValue('edit_master', data.master || data.ФИО_мастера || '');
-    setValue('edit_breakdowns', data.breakdowns || data.Поломки || '');
+    setValue('edit_shift', data.shift || data.Смена || data['СМЕНА'] || '');
+    setValue('edit_shop', data.shop || data.Цех || data['ЦЕХ'] || '');
+    setValue('edit_master', data.master || data.ФИО_мастера || data['ФИО_МАСТЕРА'] || '');
+    setValue('edit_breakdowns', data.breakdowns || data.Поломки || data['ПОЛОМКИ_И_ПРОСТОИ'] || '');
 
     // Все числовые поля
     const allFields = [
@@ -361,8 +361,6 @@ export class UI {
         );
         value = foundKey ? data[foundKey] : 0;
       }
-      
-      console.log('Field:', field.id, 'value:', value, 'russianKey:', field.russianKey, 'data keys:', Object.keys(data).filter(k => k.includes('ПЛАЗМА') || k.includes('plasma')));
       
       setValue(`edit_${field.id}`, value);
     }
@@ -559,11 +557,16 @@ export class UI {
     modal.id = modalId;
     modal.className = 'modal-overlay view-modal';
     
+    // Получаем основные поля (проверяем разные варианты названий)
+    const dateStr = data.date || data.Дата || data['ДАТА'];
+    const shift = data.shift || data.Смена || data['СМЕНА'];
+    const shop = data.shop || data.Цех || data['ЦЕХ'];
+    const master = data.master || data.ФИО_мастера || data['ФИО_МАСТЕРА'];
+    
     // Форматируем дату
     let dateDisplay = '-';
-    if (data.date || data.Дата) {
-      const dateStr = data.date || data.Дата;
-      if (dateStr.includes('T')) {
+    if (dateStr) {
+      if (typeof dateStr === 'string' && dateStr.includes('T')) {
         const d = new Date(dateStr);
         dateDisplay = d.toLocaleDateString('ru-RU');
       } else {
@@ -643,15 +646,15 @@ export class UI {
               </div>
               <div class="view-item">
                 <div class="view-item-label">Смена</div>
-                <div class="view-item-value">${data.shift || data.Смена || '-'}</div>
+                <div class="view-item-value">${shift || '-'}</div>
               </div>
               <div class="view-item">
                 <div class="view-item-label">Цех</div>
-                <div class="view-item-value">${escapeHtml(data.shop || data.Цех || '-')}</div>
+                <div class="view-item-value">${escapeHtml(shop || '-')}</div>
               </div>
               <div class="view-item">
                 <div class="view-item-label">Мастер</div>
-                <div class="view-item-value">${escapeHtml(data.master || data.ФИО_мастера || '-')}</div>
+                <div class="view-item-value">${escapeHtml(master || '-')}</div>
               </div>
             </div>
           </div>
@@ -718,7 +721,12 @@ export class UI {
     const bindActions = () => {
       const editBtn = modal.querySelector('[data-action="edit"]');
       const deleteBtn = modal.querySelector('[data-action="delete"]');
-      const closeBtn = modal.querySelector('[data-action="close"]');
+      const closeBtns = modal.querySelectorAll('[data-action="close"]');
+      
+      const closeModalFn = () => {
+        this.closeModal(modalId);
+        if (onClose) onClose();
+      };
       
       if (editBtn && onEdit) {
         editBtn.onclick = () => {
@@ -734,19 +742,15 @@ export class UI {
         };
       }
       
-      const closeModal = () => {
-        this.closeModal(modalId);
-        if (onClose) onClose();
-      };
-      
-      if (closeBtn) {
-        closeBtn.onclick = closeModal;
-      }
+      // Все кнопки закрыть (в шапке и футере)
+      closeBtns.forEach(btn => {
+        btn.onclick = closeModalFn;
+      });
       
       // Закрытие по клику вне окна
       modal.addEventListener('click', (e) => {
         if (e.target === modal) {
-          closeModal();
+          closeModalFn();
         }
       });
       
@@ -754,7 +758,7 @@ export class UI {
       const closeOnEscape = (e) => {
         if (e.key === 'Escape') {
           document.removeEventListener('keydown', closeOnEscape);
-          closeModal();
+          closeModalFn();
         }
       };
       document.addEventListener('keydown', closeOnEscape);

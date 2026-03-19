@@ -435,6 +435,9 @@ body {
 /* Number inputs */
 input[type="number"] {
   font-variant-numeric: tabular-nums;
+  padding: 12px;
+  font-size: 16px;
+  min-height: 44px;
 }
 
 /* Tables */
@@ -492,8 +495,9 @@ table tfoot th {
 /* People table specific */
 .people-input,
 #total_people {
-  width: 80px;
-  padding: 8px;
+  width: 100px;
+  padding: 12px;
+  font-size: 16px;
   text-align: center;
   border-radius: var(--radius-sm);
   border: 2px solid var(--border-color);

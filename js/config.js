@@ -46,7 +46,7 @@ const CONFIG = {
       { id: "stamped_old", label: "Отштамповано (пресс старый)", russianKey: "ОТШТАМПОВАНО_ПРЕСС_СТАРЫЙ" },
       { id: "stamped_italy", label: "Отштамповано (Итальянец)", russianKey: "ОТШТАМПОВАНО_ИТАЛЬЯНЕЦ" },
       { id: "stamped_new", label: "Отштамповано (пресс новый)", russianKey: "ОТШТАМПОВАНО_ПРЕСС_НОВЫЙ" },
-      { id: "combined", label: "Комбированных днищ", russianKey: "КОМБИНИРОВАННЫХ_ДНИЩ" },
+      { id: "combined", label: "Колиброванных днищ", russianKey: "КОЛИБРОВАННЫХ_ДНИЩ" },
       { id: "repair", label: "Ремонтных днищ", russianKey: "РЕМОНТНЫХ_ДНИЩ" },
       { id: "flanged", label: "Отбортованных днищ", russianKey: "ОТБОРТОВАННЫХ_ДНИЩ" },
       { id: "trimmed", label: "Обрезанных днищ", russianKey: "ОБРЕЗАННЫХ_ДНИЩ" },

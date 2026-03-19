@@ -194,7 +194,8 @@ class App {
     });
     
     if (mode === 'view') {
-      this.loadData();
+      // Автоматическая синхронизация с таблицей при переключении
+      this.refreshDataFromSheet(false);
     } else if (mode === 'reports') {
       this.loadReportData();
     } else {
@@ -444,8 +445,12 @@ class App {
    * Принудительно обновляет данные из Google Sheets
    */
   async refreshDataFromSheet(showLoading = true) {
+    const container = document.getElementById('tableContainer');
+    
     if (showLoading) {
       UI.showGlobalLoading('Обновление данных из таблицы...');
+    } else if (container) {
+      UI.showLoading(container, 'Синхронизация с таблицей...');
     }
     
     try {
