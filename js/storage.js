@@ -181,6 +181,28 @@ export class Storage {
   }
 
   /**
+   * Универсальный метод отправки данных на сервер
+   */
+  async sendData(payload) {
+    try {
+      // Используем JSONP для GET, но для POST с no-cors ответ недоступен
+      // Поэтому просто отправляем и надеемся на успех
+      await fetch(CONFIG.appsScriptUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      
+      // При no-cors мы не можем прочитать ответ, так что предполагаем успех
+      return { result: 'success' };
+    } catch (error) {
+      console.error('Ошибка отправки:', error);
+      return { result: 'error', message: error.message || 'Ошибка сети' };
+    }
+  }
+
+  /**
    * Экспорт в CSV
    */
   exportToCSV() {
@@ -199,6 +221,126 @@ export class Storage {
     ].join('\n');
     
     return csv;
+  }
+
+  /**
+   * Отправка данных о поломке
+   */
+  async submitBreakdown(data) {
+    const payload = {
+      action: "addBreakdown",
+      sector: data.sector,
+      equipment: data.equipment,
+      dateFrom: data.dateFrom,
+      dateTo: data.dateTo || "",
+      downtime: data.downtime,
+      reason: data.reason
+    };
+    
+    return this.sendData(payload);
+  }
+
+  /**
+   * Загрузка списка поломок
+   */
+  async loadBreakdowns() {
+    try {
+      const response = await fetch(`${CONFIG.appsScriptUrl}?action=getBreakdowns`);
+      const data = await response.json();
+      return data.breakdowns || [];
+    } catch (error) {
+      console.error("Ошибка загрузки поломок:", error);
+      return [];
+    }
+  }
+
+  /**
+   * Загрузка списка участков
+   */
+  async loadSectors() {
+    try {
+      const response = await fetch(`${CONFIG.appsScriptUrl}?action=getSectors`);
+      const data = await response.json();
+      return data.sectors || [];
+    } catch (error) {
+      console.error("Ошибка загрузки участков:", error);
+      return [];
+    }
+  }
+
+  /**
+   * Загрузка списка оборудования
+   */
+  async loadEquipment() {
+    try {
+      const response = await fetch(`${CONFIG.appsScriptUrl}?action=getEquipment`);
+      const data = await response.json();
+      return data.equipment || [];
+    } catch (error) {
+      console.error("Ошибка загрузки поломок:", error);
+      return [];
+    }
+  }
+
+  /**
+   * Удаление поломки
+   */
+  async deleteBreakdown(id) {
+    const payload = {
+      action: "deleteBreakdown",
+      id: id
+    };
+    
+    return this.sendData(payload);
+  }
+  
+  /**
+   * Обновление поломки через JSONP GET
+   */
+  async updateBreakdown(data) {
+    return new Promise((resolve, reject) => {
+      const callbackName = 'updateCallback_' + Date.now();
+      
+      // Создаем скрипт для обратного вызова
+      window[callbackName] = (response) => {
+        delete window[callbackName];
+        if (script.parentNode) script.parentNode.removeChild(script);
+        resolve(response);
+      };
+      
+      // Формируем URL с параметрами
+      const params = new URLSearchParams({
+        action: 'updateBreakdown',
+        callback: callbackName,
+        id: data.id,
+        sector: data.sector,
+        equipment: data.equipment,
+        dateFrom: data.dateFrom,
+        dateTo: data.dateTo || '',
+        downtime: data.downtime,
+        reason: data.reason
+      });
+      
+      const script = document.createElement('script');
+      script.src = `${CONFIG.appsScriptUrl}?${params.toString()}`;
+      
+      script.onerror = () => {
+        delete window[callbackName];
+        if (script.parentNode) script.parentNode.removeChild(script);
+        reject(new Error('Ошибка загрузки'));
+      };
+      
+      // Таймаут на случай если callback не вызовется
+      setTimeout(() => {
+        if (window[callbackName]) {
+          delete window[callbackName];
+          if (script.parentNode) script.parentNode.removeChild(script);
+          reject(new Error('Таймаут запроса'));
+        }
+      }, 30000);
+      
+      document.head.appendChild(script);
+    });
   }
 }
 

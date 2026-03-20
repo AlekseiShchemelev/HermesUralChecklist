@@ -1,7 +1,7 @@
 /**
  * Главный модуль приложения (оптимизированная версия)
  */
-'use strict';
+"use strict";
 
 import CONFIG from "./config.js";
 import { DataManager } from "./data.js";
@@ -17,13 +17,13 @@ import auth from "./auth.js";
  */
 function createCustomLabelsPlugin(fontSize = 11) {
   return {
-    id: 'customLabels',
+    id: "customLabels",
     afterDatasetsDraw(chart) {
       const { ctx } = chart;
       ctx.save();
       ctx.font = `bold ${fontSize}px Arial`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'bottom';
+      ctx.textAlign = "center";
+      ctx.textBaseline = "bottom";
       chart.data.datasets.forEach((dataset, i) => {
         const meta = chart.getDatasetMeta(i);
         if (!meta.hidden) {
@@ -37,7 +37,7 @@ function createCustomLabelsPlugin(fontSize = 11) {
         }
       });
       ctx.restore();
-    }
+    },
   };
 }
 
@@ -88,7 +88,7 @@ class App {
     const loginScreen = document.getElementById("loginScreen");
     const mainApp = document.getElementById("mainApp");
     if (!loginScreen || !mainApp) return;
-    
+
     loginScreen.style.display = "flex";
     mainApp.style.display = "none";
 
@@ -125,7 +125,7 @@ class App {
     const loginScreen = document.getElementById("loginScreen");
     const mainApp = document.getElementById("mainApp");
     if (!loginScreen || !mainApp) return;
-    
+
     loginScreen.style.display = "none";
     mainApp.style.display = "block";
 
@@ -159,7 +159,7 @@ class App {
     );
 
     this.setupOptimizedListeners();
-    
+
     // Очистка при уходе со страницы
     window.addEventListener("beforeunload", () => this.cleanup());
   }
@@ -176,21 +176,21 @@ class App {
         this.handleResize();
       }, 100);
     };
-    
+
     this._scrollHandler = () => {
       if (this.scrollTimeout) return;
       this.scrollTimeout = setTimeout(() => {
         this.scrollTimeout = null;
       }, 16);
     };
-    
+
     // Throttle для resize
     window.addEventListener("resize", this._resizeHandler, { passive: true });
 
     // Throttle для скролла (60fps)
     window.addEventListener("scroll", this._scrollHandler, { passive: true });
   }
-  
+
   /**
    * Очистка ресурсов при уничтожении приложения
    */
@@ -202,7 +202,7 @@ class App {
     if (this._scrollHandler) {
       window.removeEventListener("scroll", this._scrollHandler);
     }
-    
+
     // Очищаем таймеры
     if (this.resizeTimer) {
       clearTimeout(this.resizeTimer);
@@ -212,16 +212,16 @@ class App {
       clearTimeout(this.scrollTimeout);
       this.scrollTimeout = null;
     }
-    
+
     // Отключаем observer
     if (this.chartObserver) {
       this.chartObserver.disconnect();
       this.chartObserver = null;
     }
-    
+
     // Уничтожаем графики
     this.destroyCharts();
-    
+
     // Уничтожаем worker в dataManager
     if (this.dataManager) {
       this.dataManager.cleanup();
@@ -280,7 +280,7 @@ class App {
       const shiftTypeEl = document.getElementById("reportShiftType");
       this.savedShiftType = shiftTypeEl ? shiftTypeEl.value : "";
     }
-    
+
     this.currentMode = mode;
 
     // Обновляем кнопки
@@ -298,6 +298,10 @@ class App {
       this.refreshDataFromSheet(false);
     } else if (mode === "reports") {
       this.loadReportData();
+    } else if (mode === "breakdowns") {
+      this.loadBreakdownsData();
+    } else if (mode === "breakdown-reports") {
+      this.loadBreakdownReports();
     } else {
       this.destroyCharts();
     }
@@ -1223,7 +1227,7 @@ class App {
       if (this.chartObserver) {
         this.chartObserver.disconnect();
       }
-      
+
       this.chartObserver = new IntersectionObserver(
         (entries) => {
           entries.forEach((entry) => {
@@ -2038,7 +2042,7 @@ class App {
       this.prepareShiftData(
         data,
         "combined",
-        "КОЛИБРОВАННЫХ_ДНИЩ",
+        "КАЛИБРОВАННЫХ_ДНИЩ",
         filterShiftType,
       );
 
@@ -2331,7 +2335,7 @@ class App {
         label: "Ремонтных (Ночь)",
         data: repairNight,
         borderColor: "#404040",
-        backgroundColor: "#ffffffff",
+        backgroundColor: "#404040",
         fill: false,
         tension: 0.3,
         pointRadius: 5,
@@ -2428,6 +2432,879 @@ class App {
     html.push("</div>");
     container.innerHTML = html.join("");
   }
+
+  /**
+   * Загрузка данных поломок
+   */
+  async loadBreakdownsData() {
+    // Инициализация формы если ещё не сделана
+    this.initBreakdownForm();
+
+    // Загрузка данных
+    await this.loadBreakdownsTable();
+  }
+
+  /**
+   * Инициализация формы поломок
+   */
+  async initBreakdownForm() {
+    if (this.breakdownFormInitialized) return;
+
+    const form = document.getElementById("breakdownForm");
+    const sectorSelect = document.getElementById("breakdownSector");
+    const equipmentSelect = document.getElementById("breakdownEquipment");
+    const clearBtn = document.getElementById("clearBreakdownForm");
+    const refreshBtn = document.getElementById("refreshBreakdowns");
+
+    if (!form || !sectorSelect || !equipmentSelect) return;
+
+    // Используем кешированные данные если есть, иначе загружаем
+    if (!this.cachedSectors || !this.cachedEquipment) {
+      const [sectors, equipment] = await Promise.all([
+        this.storage.loadSectors(),
+        this.storage.loadEquipment(),
+      ]);
+      this.cachedSectors = sectors;
+      this.cachedEquipment = equipment;
+    }
+
+    const sectors = this.cachedSectors;
+    const equipment = this.cachedEquipment;
+    this.sectorsData = sectors;
+    this.equipmentData = equipment;
+
+    // Заполняем селект участков
+    sectorSelect.innerHTML = '<option value="">Выберите участок</option>';
+    sectors.forEach((sector) => {
+      const option = document.createElement("option");
+      option.value = sector.name || sector.Участок || sector.id;
+      option.textContent = sector.name || sector.Участок || sector.id;
+      option.dataset.id = sector.id;
+      sectorSelect.appendChild(option);
+    });
+
+    // Обновление списка оборудования при изменении участка
+    sectorSelect.addEventListener("change", () => {
+      const sectorName = sectorSelect.value;
+      const sectorId =
+        sectorSelect.options[sectorSelect.selectedIndex]?.dataset?.id;
+
+      equipmentSelect.innerHTML =
+        '<option value="">Выберите оборудование</option>';
+
+      // Фильтруем оборудование по участку
+      const filteredEquipment = this.equipmentData.filter((eq) => {
+        const eqSector = eq.sector_id || eq.Участок || eq.sector;
+        return eqSector == sectorId || eqSector === sectorName;
+      });
+
+      filteredEquipment.forEach((eq) => {
+        const option = document.createElement("option");
+        option.value = eq.name || eq.Оборудование || eq.id;
+        option.textContent = eq.name || eq.Оборудование || eq.id;
+        equipmentSelect.appendChild(option);
+      });
+    });
+
+    // Установка текущей даты в поля
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, "0");
+    const dd = String(today.getDate()).padStart(2, "0");
+    document.getElementById("breakdownDateFrom").value = `${yyyy}-${mm}-${dd}`;
+
+    // Отправка формы
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      await this.submitBreakdown();
+    });
+
+    // Очистка формы
+    if (clearBtn) {
+      clearBtn.addEventListener("click", () => {
+        form.reset();
+        const now = new Date();
+        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+        document.getElementById("breakdownDateFrom").value = now
+          .toISOString()
+          .slice(0, 16);
+      });
+    }
+
+    // Обновление таблицы
+    if (refreshBtn) {
+      refreshBtn.addEventListener("click", () => this.loadBreakdownsTable());
+    }
+
+    this.breakdownFormInitialized = true;
+  }
+
+  /**
+   * Отправка данных о поломке
+   */
+  async submitBreakdown() {
+    const sector = document.getElementById("breakdownSector").value;
+    const equipment = document.getElementById("breakdownEquipment").value;
+    const dateFrom = document.getElementById("breakdownDateFrom").value;
+    const dateTo = document.getElementById("breakdownDateTo").value;
+    const downtime = document.getElementById("breakdownDowntime").value;
+    const reason = document.getElementById("breakdownReason").value;
+
+    if (!sector || !equipment || !dateFrom || !downtime || !reason) {
+      alert("Заполните обязательные поля");
+      return;
+    }
+
+    const btn = document.querySelector("#breakdownForm button[type='submit']");
+    btn.disabled = true;
+    btn.textContent = "Сохранение...";
+
+    try {
+      const result = await this.storage.submitBreakdown({
+        sector,
+        equipment,
+        dateFrom,
+        dateTo,
+        downtime: parseFloat(downtime),
+        reason,
+      });
+
+      if (result.result === "success" || result.success) {
+        alert("Поломка успешно зарегистрирована!");
+        this.cachedBreakdowns = null; // Очистить кеш
+        document.getElementById("breakdownForm").reset();
+        await this.loadBreakdownsTable();
+      } else {
+        alert("Ошибка: " + (result.message || "Неизвестная ошибка"));
+      }
+    } catch (error) {
+      alert("Ошибка отправки: " + error.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Зарегистрировать поломку";
+    }
+  }
+
+  /**
+   * Загрузка таблицы поломок
+   */
+  async loadBreakdownsTable() {
+    const container = document.getElementById("breakdownsTableContainer");
+    if (!container) return;
+
+    container.innerHTML = "<p class='empty-state'>Загрузка...</p>";
+
+    try {
+      const breakdowns = await this.storage.loadBreakdowns();
+      this.renderBreakdownsTable(breakdowns, container);
+    } catch (error) {
+      container.innerHTML = `<p class='error-message'>Ошибка загрузки: ${escapeHtml(error.message)}</p>`;
+    }
+  }
+
+  /**
+   * Отрисовка таблицы поломок
+   */
+  renderBreakdownsTable(breakdowns, container) {
+    if (!breakdowns || breakdowns.length === 0) {
+      container.innerHTML =
+        '<p class="empty-state">Поломок не зарегистрировано</p>';
+      return;
+    }
+
+    const html = ['<table class="data-table"><thead><tr>'];
+    html.push("<th>Участок</th>");
+    html.push("<th>Оборудование</th>");
+    html.push("<th>Дата выхода</th>");
+    html.push("<th>Дата устранения</th>");
+    html.push("<th>Простой (ч)</th>");
+    html.push("<th>Причина</th>");
+    html.push("</tr></thead><tbody>");
+
+    breakdowns.forEach((b) => {
+      html.push(
+        '<tr class="breakdown-row" data-id="' +
+          escapeHtml(String(b.id || "")) +
+          '">',
+      );
+      html.push("<td>" + escapeHtml(b.sector || "") + "</td>");
+      html.push("<td>" + escapeHtml(b.equipment || "") + "</td>");
+      html.push("<td>" + escapeHtml(b.dateFrom || "") + "</td>");
+      html.push("<td>" + escapeHtml(b.dateTo || "-") + "</td>");
+      html.push("<td>" + escapeHtml(String(b.downtime || "")) + "</td>");
+      html.push("<td>" + escapeHtml(b.reason || "") + "</td>");
+      html.push("</tr>");
+    });
+
+    html.push("</tbody></table>");
+    container.innerHTML = html.join("");
+
+    // Добавляем обработчики кликов через делегирование
+    const table = container.querySelector("table");
+    if (table) {
+      table.addEventListener("click", (e) => {
+        const row = e.target.closest(".breakdown-row");
+        if (row) {
+          const id = row.dataset.id;
+          console.log("Клик на строку поломки, id:", id);
+          const breakdown = breakdowns.find((b) => String(b.id) === String(id));
+          if (breakdown) {
+            console.log("Найдена поломка:", breakdown);
+            this.showBreakdownModal(breakdown);
+          } else {
+            console.error(
+              "Поломка не найдена, доступные id:",
+              breakdowns.map((b) => b.id),
+            );
+          }
+        }
+      });
+    }
+  }
+
+  /**
+   * Показ модального окна поломки (просмотр/редактирование)
+   */
+  async showBreakdownModal(breakdown) {
+    console.log("Открываем модальное окно для поломки:", breakdown);
+
+    try {
+      const modalId = "breakdownModal";
+
+      // Удаляем существующее окно
+      const existing = document.getElementById(modalId);
+      if (existing) existing.remove();
+
+      const modal = document.createElement("div");
+      modal.id = modalId;
+      modal.className = "modal-overlay view-modal";
+      modal.style.cssText =
+        "position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex !important; align-items: center; justify-content: center; z-index: 9999; opacity: 1; visibility: visible;";
+
+      console.log("Создаем модальное окно...");
+
+      // Форматируем дату для отображения (DD.MM.YYYY)
+      const formatDisplayDate = (dateStr) => {
+        if (!dateStr) return "-";
+
+        // Если формат "20.03.2026 14:12" или "20.03.2026"
+        const match = dateStr.match(/(\d{2})\.(\d{2})\.(\d{4})/);
+        if (match) {
+          return `${match[1]}.${match[2]}.${match[3]}`;
+        }
+
+        // Если формат ISO
+        const d = new Date(dateStr);
+        if (!isNaN(d.getTime())) {
+          const day = String(d.getDate()).padStart(2, "0");
+          const month = String(d.getMonth() + 1).padStart(2, "0");
+          const year = d.getFullYear();
+          return `${day}.${month}.${year}`;
+        }
+
+        return dateStr;
+      };
+
+      // Форматируем даты для input type="date" (YYYY-MM-DD)
+      const formatDateInput = (dateStr) => {
+        if (!dateStr) return "";
+
+        // Если формат "20.03.2026 14:12" или "20.03.2026"
+        const match = dateStr.match(/(\d{2})\.(\d{2})\.(\d{4})/);
+        if (match) {
+          return `${match[3]}-${match[2]}-${match[1]}`;
+        }
+
+        // Если формат ISO
+        const d = new Date(dateStr);
+        if (!isNaN(d.getTime())) {
+          return d.toISOString().slice(0, 10);
+        }
+
+        return "";
+      };
+
+      // Сначала добавляем в DOM чтобы показать загрузку
+      modal.innerHTML = `
+      <div class="modal-content" style="max-width: 700px; max-height: 90vh; overflow-y: auto; background: var(--bg-card); border-radius: var(--radius-lg); padding: 0; box-shadow: var(--shadow-lg); animation: modalSlideIn 0.2s ease-out;">
+        <style>
+          @keyframes modalSlideIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+          .info-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+          .info-table th, .info-table td { padding: 12px; text-align: left; border-bottom: 1px solid var(--border-light); }
+          .info-table th { background: var(--primary-light); color: var(--primary-dark); font-weight: 600; width: 40%; }
+          .info-table td { background: white; }
+          .info-table tr:last-child th, .info-table tr:last-child td { border-bottom: none; }
+        </style>
+        
+        <!-- Шапка в стиле карточки -->
+        <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; padding: 20px 24px; border-radius: var(--radius-lg) var(--radius-lg) 0 0;">
+          <h3 style="margin: 0; font-size: var(--text-xl); font-weight: 600;">Поломка #${escapeHtml(String(breakdown.id))}</h3>
+          <button class="modal-close" id="btnCloseModalX" style="background: rgba(255,255,255,0.2); border: none; width: 32px; height: 32px; border-radius: 50%; font-size: 20px; cursor: pointer; color: white; display: flex; align-items: center; justify-content: center;">&times;</button>
+        </div>
+        
+        <div style="padding: 24px;">
+          <div style="text-align: center; padding: 40px;" id="breakdownLoading">
+            <div style="border: 3px solid #f3f3f3; border-top: 3px solid var(--primary); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto;"></div>
+            <p style="margin-top: 15px; color: var(--text-secondary); font-size: 14px;">Загрузка данных...</p>
+          </div>
+          
+          <!-- Режим просмотра - увеличенный шрифт -->
+          <div id="breakdownViewMode" class="modal-body" style="margin-bottom: 0;">
+            <table class="info-table" style="font-size: 16px;">
+              <tr>
+                <th style="font-size: 15px; padding: 16px 12px; width: 45%;">🏭 Участок</th>
+                <td style="font-size: 16px; padding: 16px 12px; font-weight: 500;">${escapeHtml(breakdown.sector || "-")}</td>
+              </tr>
+              <tr>
+                <th style="font-size: 15px; padding: 16px 12px;">⚙️ Оборудование</th>
+                <td style="font-size: 16px; padding: 16px 12px; font-weight: 500;">${escapeHtml(breakdown.equipment || "-")}</td>
+              </tr>
+              <tr>
+                <th style="font-size: 15px; padding: 16px 12px;">📅 Дата выхода из строя</th>
+                <td style="font-size: 16px; padding: 16px 12px;">${formatDisplayDate(breakdown.dateFrom)}</td>
+              </tr>
+              <tr>
+                <th style="font-size: 15px; padding: 16px 12px;">✅ Дата устранения</th>
+                <td style="font-size: 16px; padding: 16px 12px;">${formatDisplayDate(breakdown.dateTo) || "<span style='color: #999;'>Не устранено</span>"}</td>
+              </tr>
+              <tr>
+                <th style="font-size: 15px; padding: 16px 12px;">⏰ Время простоя (часов)</th>
+                <td style="font-size: 18px; padding: 16px 12px; font-weight: 700; color: var(--primary);">${escapeHtml(String(breakdown.downtime || 0))}</td>
+              </tr>
+              <tr>
+                <th style="font-size: 15px; padding: 16px 12px;">📝 Причина поломки</th>
+                <td style="font-size: 15px; padding: 16px 12px; line-height: 1.5;">${escapeHtml(breakdown.reason || "-")}</td>
+              </tr>
+            </table>
+          </div>
+        
+        <!-- Режим редактирования -->
+        <div id="breakdownEditMode" class="modal-body" style="display: none;">
+          <form id="breakdownEditForm">
+            <input type="hidden" id="editBreakdownId" value="${breakdown.id}">
+            
+            <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+              <div class="form-group">
+                <label style="display: block; margin-bottom: 6px; font-weight: 500; color: var(--text-secondary);">Участок *</label>
+                <select id="editBreakdownSector" class="form-control" required style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: var(--radius-sm);">
+                  <option value="">Загрузка...</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label style="display: block; margin-bottom: 6px; font-weight: 500; color: var(--text-secondary);">Оборудование *</label>
+                <select id="editBreakdownEquipment" class="form-control" required style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: var(--radius-sm);">
+                  <option value="">Сначала выберите участок</option>
+                </select>
+              </div>
+            </div>
+            
+            <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+              <div class="form-group">
+                <label style="display: block; margin-bottom: 6px; font-weight: 500; color: var(--text-secondary);">Дата выхода *</label>
+                <input type="date" id="editBreakdownDateFrom" class="form-control" value="${formatDateInput(breakdown.dateFrom)}" required style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: var(--radius-sm);">
+              </div>
+              <div class="form-group">
+                <label style="display: block; margin-bottom: 6px; font-weight: 500; color: var(--text-secondary);">Дата устранения</label>
+                <input type="date" id="editBreakdownDateTo" class="form-control" value="${formatDateInput(breakdown.dateTo)}" style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: var(--radius-sm);">
+              </div>
+            </div>
+            
+            <div class="form-group" style="margin-bottom: 16px;">
+              <label style="display: block; margin-bottom: 6px; font-weight: 500; color: var(--text-secondary);">Время простоя (часов) *</label>
+              <input type="number" id="editBreakdownDowntime" class="form-control" value="${breakdown.downtime}" min="0" step="0.5" required style="width: 150px; padding: 10px; border: 1px solid var(--border-color); border-radius: var(--radius-sm);">
+            </div>
+            
+            <div class="form-group">
+              <label style="display: block; margin-bottom: 6px; font-weight: 500; color: var(--text-secondary);">Причина *</label>
+              <textarea id="editBreakdownReason" class="form-control" rows="3" required style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); resize: vertical; font-family: inherit;">${escapeHtml(breakdown.reason || "")}</textarea>
+            </div>
+          </form>
+        </div>
+        </div>
+        
+        <!-- Кнопки -->
+        <div class="modal-footer" style="display: flex; gap: 10px; justify-content: flex-end; padding: 16px 24px; background: var(--bg-secondary); border-top: 1px solid var(--border-light); border-radius: 0 0 var(--radius-lg) var(--radius-lg);">
+          <button type="button" id="btnDeleteBreakdown" class="btn btn-danger" style="display: flex; align-items: center; gap: 6px;">🗑️ Удалить</button>
+          <button type="button" id="btnCloseBreakdown" class="btn btn-secondary">Закрыть</button>
+          <button type="button" id="btnEditBreakdown" class="btn btn-primary" style="display: flex; align-items: center; gap: 6px;">✏️ Редактировать</button>
+          <button type="button" id="btnSaveBreakdown" class="btn btn-success" style="display: none;">💾 Сохранить</button>
+          <button type="button" id="btnCancelEditBreakdown" class="btn btn-secondary" style="display: none;">❌ Отмена</button>
+        </div>
+      </div>
+    `;
+
+      // Сразу добавляем в DOM и показываем окно
+      document.body.appendChild(modal);
+      console.log("Модальное окно добавлено в DOM");
+
+      // Загружаем справочники для редактирования
+      await this.loadBreakdownEditFormData(breakdown);
+
+      // Убираем индикатор загрузки
+      const loadingEl = document.getElementById("breakdownLoading");
+      if (loadingEl) loadingEl.style.display = "none";
+
+      // Обработчики кнопок
+      const viewMode = modal.querySelector("#breakdownViewMode");
+      const editMode = modal.querySelector("#breakdownEditMode");
+      const btnEdit = modal.querySelector("#btnEditBreakdown");
+      const btnSave = modal.querySelector("#btnSaveBreakdown");
+      const btnDelete = modal.querySelector("#btnDeleteBreakdown");
+      const btnClose = modal.querySelector("#btnCloseBreakdown");
+      const btnCancel = modal.querySelector("#btnCancelEditBreakdown");
+
+      // Закрыть
+      btnClose.addEventListener("click", () => modal.remove());
+
+      // Закрыть по кнопке X
+      const btnCloseX = modal.querySelector("#btnCloseModalX");
+      if (btnCloseX) btnCloseX.addEventListener("click", () => modal.remove());
+
+      // Удалить
+      btnDelete.addEventListener("click", async () => {
+        if (confirm("Удалить запись о поломке?")) {
+          try {
+            await this.storage.deleteBreakdown(breakdown.id);
+            this.cachedBreakdowns = null; // Очистить кеш
+            modal.remove();
+            await this.loadBreakdownsTable();
+            alert("Запись удалена");
+          } catch (error) {
+            alert("Ошибка удаления: " + error.message);
+          }
+        }
+      });
+
+      // Редактировать
+      btnEdit.addEventListener("click", () => {
+        viewMode.style.display = "none";
+        editMode.style.display = "block";
+        btnEdit.style.display = "none";
+        btnClose.style.display = "none";
+        btnDelete.style.display = "none";
+        btnSave.style.display = "inline-block";
+        btnCancel.style.display = "inline-block";
+      });
+
+      // Отмена редактирования
+      btnCancel.addEventListener("click", () => {
+        viewMode.style.display = "block";
+        editMode.style.display = "none";
+        btnEdit.style.display = "inline-block";
+        btnClose.style.display = "inline-block";
+        btnDelete.style.display = "inline-block";
+        btnSave.style.display = "none";
+        btnCancel.style.display = "none";
+      });
+
+      // Сохранить
+      btnSave.addEventListener("click", async () => {
+        const form = modal.querySelector("#breakdownEditForm");
+        if (!form.checkValidity()) {
+          form.reportValidity();
+          return;
+        }
+
+        btnSave.disabled = true;
+        btnSave.textContent = "Сохранение...";
+
+        try {
+          // Конвертируем дату из YYYY-MM-DD в DD.MM.YYYY
+          const formatDateForSave = (dateStr) => {
+            if (!dateStr) return "";
+            const match = dateStr.match(/(\d{4})-(\d{2})-(\d{2})/);
+            if (match) {
+              return `${match[3]}.${match[2]}.${match[1]}`;
+            }
+            return dateStr;
+          };
+
+          const updatedData = {
+            id: breakdown.id,
+            sector: document.getElementById("editBreakdownSector").value,
+            equipment: document.getElementById("editBreakdownEquipment").value,
+            dateFrom: formatDateForSave(
+              document.getElementById("editBreakdownDateFrom").value,
+            ),
+            dateTo: formatDateForSave(
+              document.getElementById("editBreakdownDateTo").value,
+            ),
+            downtime: parseFloat(
+              document.getElementById("editBreakdownDowntime").value,
+            ),
+            reason: document.getElementById("editBreakdownReason").value,
+          };
+
+          console.log("Отправка данных на сервер:", updatedData);
+          const result = await this.storage.updateBreakdown(updatedData);
+          console.log("Результат:", result);
+
+          if (result.result === "success" || result.success) {
+            alert("Изменения сохранены!");
+            this.cachedBreakdowns = null; // Очистить кеш
+            modal.remove();
+            await this.loadBreakdownsTable();
+          } else {
+            alert("Ошибка: " + (result.message || "Неизвестная ошибка"));
+          }
+        } catch (error) {
+          alert("Ошибка сохранения: " + error.message);
+        } finally {
+          btnSave.disabled = false;
+          btnSave.textContent = "💾 Сохранить";
+        }
+      });
+
+      // Закрытие по клику вне окна
+      modal.addEventListener("click", (e) => {
+        if (e.target === modal) modal.remove();
+      });
+
+      console.log("Модальное окно создано");
+    } catch (error) {
+      console.error("Ошибка при создании модального окна:", error);
+      alert("Ошибка открытия окна: " + error.message);
+    }
+  }
+
+  /**
+   * Загрузка справочников для формы редактирования
+   */
+  async loadBreakdownEditFormData(breakdown) {
+    const sectorSelect = document.getElementById("editBreakdownSector");
+    const equipmentSelect = document.getElementById("editBreakdownEquipment");
+
+    if (!sectorSelect || !equipmentSelect) return;
+
+    // Используем кешированные данные или загружаем если нет
+    if (!this.cachedSectors || !this.cachedEquipment) {
+      const [sectors, equipment] = await Promise.all([
+        this.storage.loadSectors(),
+        this.storage.loadEquipment(),
+      ]);
+      this.cachedSectors = sectors;
+      this.cachedEquipment = equipment;
+    }
+
+    const sectors = this.cachedSectors;
+    const equipment = this.cachedEquipment;
+
+    // Заполняем участки
+    sectorSelect.innerHTML = '<option value="">Выберите участок</option>';
+    sectors.forEach((sector) => {
+      const option = document.createElement("option");
+      option.value = sector.name || sector.Участок || sector.id;
+      option.textContent = sector.name || sector.Участок || sector.id;
+      option.dataset.id = sector.id;
+      if ((sector.name || sector.Участок || sector.id) === breakdown.sector) {
+        option.selected = true;
+      }
+      sectorSelect.appendChild(option);
+    });
+
+    // Обновление оборудования при изменении участка
+    const updateEquipment = () => {
+      const sectorName = sectorSelect.value;
+      const sectorId =
+        sectorSelect.options[sectorSelect.selectedIndex]?.dataset?.id;
+
+      equipmentSelect.innerHTML =
+        '<option value="">Выберите оборудование</option>';
+
+      const filteredEquipment = equipment.filter((eq) => {
+        const eqSector = eq.sector_id || eq.Участок || eq.sector;
+        return eqSector == sectorId || eqSector === sectorName;
+      });
+
+      filteredEquipment.forEach((eq) => {
+        const option = document.createElement("option");
+        option.value = eq.name || eq.Оборудование || eq.id;
+        option.textContent = eq.name || eq.Оборудование || eq.id;
+        if ((eq.name || eq.Оборудование || eq.id) === breakdown.equipment) {
+          option.selected = true;
+        }
+        equipmentSelect.appendChild(option);
+      });
+    };
+
+    sectorSelect.addEventListener("change", updateEquipment);
+    updateEquipment(); // Инициальная загрузка
+  }
+
+  /**
+   * Загрузка отчетов по поломкам
+   */
+  async loadBreakdownReports() {
+    // Установка дат по умолчанию - текущая дата с по
+    const today = new Date();
+
+    const dateFromEl = document.getElementById("breakdownReportDateFrom");
+    const dateToEl = document.getElementById("breakdownReportDateTo");
+
+    if (dateFromEl && !dateFromEl.value) dateFromEl.valueAsDate = today;
+    if (dateToEl && !dateToEl.value) dateToEl.valueAsDate = today;
+
+    // Обработчики (добавляем один раз)
+    if (!this.breakdownReportsInitialized) {
+      const generateBtn = document.getElementById("generateBreakdownReports");
+      const resetBtn = document.getElementById("resetBreakdownFilters");
+
+      if (generateBtn) {
+        generateBtn.addEventListener("click", () =>
+          this.generateBreakdownReports(),
+        );
+      }
+
+      if (resetBtn) {
+        resetBtn.addEventListener("click", () => this.resetBreakdownFilters());
+      }
+
+      this.breakdownReportsInitialized = true;
+    }
+
+    // Загружаем участки для фильтра (с кешированием)
+    await this.loadBreakdownReportSectors();
+
+    // Первичная загрузка
+    await this.generateBreakdownReports();
+  }
+
+  /**
+   * Загрузка участков для отчёта поломок (с кешированием)
+   */
+  async loadBreakdownReportSectors() {
+    const sectorSelect = document.getElementById("breakdownReportSector");
+    if (!sectorSelect) return;
+
+    // Используем закешированные данные если есть
+    if (!this.cachedSectors) {
+      this.cachedSectors = await this.storage.loadSectors();
+    }
+
+    const currentValue = sectorSelect.value;
+    sectorSelect.innerHTML = '<option value="">Все участки</option>';
+
+    this.cachedSectors.forEach((sector) => {
+      const option = document.createElement("option");
+      const name = sector.name || sector.Участок || sector.id;
+      option.value = name;
+      option.textContent = name;
+      sectorSelect.appendChild(option);
+    });
+
+    sectorSelect.value = currentValue;
+  }
+
+  /**
+   * Сброс фильтров отчётов по поломкам
+   */
+  resetBreakdownFilters() {
+    const today = new Date();
+
+    const dateFromEl = document.getElementById("breakdownReportDateFrom");
+    const dateToEl = document.getElementById("breakdownReportDateTo");
+    const sectorEl = document.getElementById("breakdownReportSector");
+
+    if (dateFromEl) dateFromEl.valueAsDate = today;
+    if (dateToEl) dateToEl.valueAsDate = today;
+    if (sectorEl) sectorEl.value = "";
+
+    this.generateBreakdownReports();
+  }
+
+  /**
+   * Парсинг даты из русского формата (DD.MM.YYYY HH:mm)
+   */
+  parseRussianDate(dateStr) {
+    if (!dateStr) return null;
+    // Формат: 19.03.2026 14:12
+    const match = dateStr.match(/(\d{2})\.(\d{2})\.(\d{4})\s*(\d{2}):(\d{2})/);
+    if (match) {
+      const [, day, month, year, hour, minute] = match;
+      return new Date(`${year}-${month}-${day}T${hour}:${minute}:00`);
+    }
+    // Пробуем стандартный парсер
+    const d = new Date(dateStr);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  /**
+   * Формирование отчетов по поломкам
+   */
+  async generateBreakdownReports() {
+    const dateFromEl = document.getElementById("breakdownReportDateFrom");
+    const dateToEl = document.getElementById("breakdownReportDateTo");
+    const sectorEl = document.getElementById("breakdownReportSector");
+
+    const dateFrom = dateFromEl?.value;
+    const dateTo = dateToEl?.value;
+    const sector = sectorEl?.value;
+
+    try {
+      // Используем кеш или загружаем
+      let breakdowns = this.cachedBreakdowns;
+      if (!breakdowns) {
+        breakdowns = await this.storage.loadBreakdowns();
+        this.cachedBreakdowns = breakdowns;
+      }
+
+      // Преобразуем даты фильтров
+      const fromDate = dateFrom ? new Date(dateFrom + "T00:00:00") : null;
+      const toDate = dateTo ? new Date(dateTo + "T23:59:59") : null;
+
+      // Фильтрация
+      const filtered = breakdowns.filter((b) => {
+        const bDate = this.parseRussianDate(b.dateFrom);
+        if (!bDate) return false;
+
+        if (fromDate && bDate < fromDate) return false;
+        if (toDate && bDate > toDate) return false;
+        if (sector && b.sector !== sector) return false;
+        return true;
+      });
+
+      this.renderBreakdownDowntimeChart(filtered);
+      this.renderBreakdownStatsTable(filtered);
+    } catch (error) {
+      console.error("Ошибка загрузки отчета:", error);
+    }
+  }
+
+  /**
+   * График простоев (в рамках 12-часовой смены)
+   */
+  renderBreakdownDowntimeChart(breakdowns) {
+    const ctx = document.getElementById("breakdownDowntimeChart");
+    if (!ctx) return;
+
+    // Группируем по оборудованию
+    const byEquipment = {};
+    breakdowns.forEach((b) => {
+      const key = b.equipment;
+      if (!byEquipment[key]) byEquipment[key] = 0;
+      byEquipment[key] += parseFloat(b.downtime || 0);
+    });
+
+    const labels = Object.keys(byEquipment);
+    const data = Object.values(byEquipment);
+
+    // Цвета в зависимости от процента (от 12 часов)
+    const colors = data.map((hours) => {
+      const percentage = hours / 12; // относительно 12-часовой смены
+      if (percentage < 0.25) return "#4CAF50"; // зелёный (<3 ч)
+      if (percentage < 0.5) return "#FF9800"; // оранжевый (<6 ч)
+      return "#F44336"; // красный (>6 ч)
+    });
+
+    if (this.charts.breakdownDowntime) {
+      this.charts.breakdownDowntime.destroy();
+    }
+
+    this.charts.breakdownDowntime = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: "Время простоя (часов)",
+            data: data,
+            backgroundColor: colors,
+            borderColor: colors,
+            borderWidth: 1,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          title: {
+            display: true,
+            text: "Простои оборудования (макс. 12 часов = 1 смена)",
+          },
+          annotation: {
+            annotations: {
+              line1: {
+                type: "line",
+                yMin: 12,
+                yMax: 12,
+                borderColor: "rgb(255, 99, 132)",
+                borderWidth: 2,
+                borderDash: [6, 6],
+                label: {
+                  content: "12 ч (смена)",
+                  enabled: true,
+                },
+              },
+            },
+          },
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            max: Math.max(12, ...data) + 1,
+            title: { display: true, text: "Часы" },
+          },
+        },
+      },
+      plugins: [createCustomLabelsPlugin()],
+    });
+  }
+
+  /**
+   * Таблица статистики поломок
+   */
+  renderBreakdownStatsTable(breakdowns) {
+    const container = document.getElementById("breakdownStatsTable");
+    if (!container) return;
+
+    if (breakdowns.length === 0) {
+      container.innerHTML =
+        '<p class="empty-state">Нет данных за выбранный период</p>';
+      return;
+    }
+
+    // Статистика по участкам
+    const bySector = {};
+    breakdowns.forEach((b) => {
+      if (!bySector[b.sector]) {
+        bySector[b.sector] = { count: 0, downtime: 0 };
+      }
+      bySector[b.sector].count++;
+      bySector[b.sector].downtime += parseFloat(b.downtime || 0);
+    });
+
+    const html = ['<table class="data-table"><thead><tr>'];
+    html.push("<th>Участок</th>");
+    html.push("<th>Кол-во поломок</th>");
+    html.push("<th>Общий простой (ч)</th>");
+    html.push("<th>Средний простой (ч)</th>");
+    html.push("<th>% от 12ч смены</th>");
+    html.push("</tr></thead><tbody>");
+
+    Object.entries(bySector).forEach(([sector, stats]) => {
+      const avg = (stats.downtime / stats.count).toFixed(1);
+      const percent = ((stats.downtime / 12) * 100).toFixed(1);
+      html.push("<tr>");
+      html.push("<td>" + escapeHtml(sector) + "</td>");
+      html.push("<td>" + stats.count + "</td>");
+      html.push("<td>" + stats.downtime.toFixed(1) + "</td>");
+      html.push("<td>" + avg + "</td>");
+      html.push("<td>" + percent + "%</td>");
+      html.push("</tr>");
+    });
+
+    html.push("</tbody></table>");
+    container.innerHTML = html.join("");
+  }
 }
 
 // Хелпер для экранирования
@@ -2442,7 +3319,12 @@ document.addEventListener("DOMContentLoaded", () => {
   window.app = new App();
 
   const hash = window.location.hash.slice(1);
-  if (hash === "view" || hash === "reports") {
+  if (
+    hash === "view" ||
+    hash === "reports" ||
+    hash === "breakdowns" ||
+    hash === "breakdown-reports"
+  ) {
     window.app.switchMode(hash);
   }
 

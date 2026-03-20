@@ -36,12 +36,12 @@
   
   <!-- Preload критических ресурсов -->
   <link rel="preload" href="css/main.css" as="style">
-  <link rel="preload" href="js/config.js?v=80" as="script" crossorigin>
-  <link rel="preload" href="js/storage.js?v=80" as="script" crossorigin>
-  <link rel="preload" href="js/data.js?v=80" as="script" crossorigin>
-  <link rel="preload" href="js/ui.js?v=80" as="script" crossorigin>
-  <link rel="preload" href="js/cache.js?v=80" as="script" crossorigin>
-  <link rel="preload" href="js/app.js?v=80" as="script" crossorigin>
+  <link rel="preload" href="js/config.js?v=98" as="script" crossorigin>
+  <link rel="preload" href="js/storage.js?v=98" as="script" crossorigin>
+  <link rel="preload" href="js/data.js?v=98" as="script" crossorigin>
+  <link rel="preload" href="js/ui.js?v=98" as="script" crossorigin>
+  <link rel="preload" href="js/cache.js?v=98" as="script" crossorigin>
+  <link rel="preload" href="js/app.js?v=98" as="script" crossorigin>
   
   <!-- Манифест PWA -->
   <link rel="manifest" href="manifest.json">
@@ -127,6 +127,14 @@
         <button class="mode-btn" data-mode="reports">
           <span class="icon">📊</span>
           <span>Отчёты</span>
+        </button>
+        <button class="mode-btn" data-mode="breakdowns">
+          <span class="icon">🔧</span>
+          <span>Поломки</span>
+        </button>
+        <button class="mode-btn" data-mode="breakdown-reports">
+          <span class="icon">📉</span>
+          <span>Отчёты по поломкам</span>
         </button>
       </nav>
     </header>
@@ -286,7 +294,7 @@
               <input type="number" id="stamped_new" min="0" value="0">
             </div>
             <div class="form-group">
-              <label for="combined">Колиброванных днищ</label>
+              <label for="combined">Калиброванных днищ</label>
               <input type="number" id="combined" min="0" value="0">
             </div>
             <div class="form-group">
@@ -562,9 +570,143 @@
 
         <!-- Отчёт: Поломки и простои -->
         <div class="report-section">
-          <h3>⚠️ Поломки и простои</h3>
+          <h3>⚠️ Поломки и простои (старый формат)</h3>
           <div id="breakdownsReport" class="breakdowns-list" style="margin-top: 20px;">
             <p class="empty-state">Выберите период и нажмите "Сформировать отчёты"</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Секция: Поломки (ввод и таблица) -->
+    <section id="breakdowns-section" class="content-section">
+      <div class="card">
+        <h2 class="card-title">🔧 Регистрация поломок</h2>
+        
+        <form id="breakdownForm">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="breakdownSector">Участок *</label>
+              <select id="breakdownSector" name="sector" required>
+                <option value="">Выберите участок</option>
+                <option value="Плазма">Плазма</option>
+                <option value="Строжка">Строжка</option>
+                <option value="Зачистка">Зачистка</option>
+                <option value="Автосварка">Автосварка</option>
+                <option value="Полотер">Полотер</option>
+                <option value="Штамповка">Штамповка</option>
+                <option value="Отбортовка">Отбортовка</option>
+                <option value="Калибровка">Калибровка</option>
+                <option value="Термообработка">Термообработка</option>
+                <option value="Логистика">Логистика</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="breakdownEquipment">Оборудование *</label>
+              <select id="breakdownEquipment" name="equipment" required>
+                <option value="">Сначала выберите участок</option>
+              </select>
+            </div>
+          </div>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label for="breakdownDateFrom">Дата выхода из строя *</label>
+              <input type="date" id="breakdownDateFrom" name="dateFrom" required>
+            </div>
+            <div class="form-group">
+              <label for="breakdownDateTo">Дата устранения</label>
+              <input type="date" id="breakdownDateTo" name="dateTo">
+            </div>
+          </div>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label for="breakdownDowntime">Время простоя (часов) *</label>
+              <input type="number" id="breakdownDowntime" name="downtime" min="0" step="0.5" required>
+            </div>
+            <div class="form-group">
+              <label for="breakdownReason">Причина *</label>
+              <input type="text" id="breakdownReason" name="reason" placeholder="Опишите причину поломки" required>
+            </div>
+          </div>
+          
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
+              <span id="breakdownSubmitText">Зарегистрировать поломку</span>
+            </button>
+            <button type="button" class="btn btn-secondary" id="clearBreakdownForm">Очистить</button>
+          </div>
+        </form>
+      </div>
+      
+      <!-- Таблица поломок -->
+      <div class="card" style="margin-top: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+          <h3 class="card-title">📋 Журнал поломок</h3>
+          <button class="btn btn-secondary" id="refreshBreakdowns">🔄 Обновить</button>
+        </div>
+        <div id="breakdownsTableContainer" class="table-responsive" style="margin-top: 15px;">
+          <p class="empty-state">Загрузка данных...</p>
+        </div>
+        <div id="breakdownsPagination" class="pagination" style="margin-top: 15px;"></div>
+      </div>
+    </section>
+
+    <!-- Секция: Отчёты по поломкам -->
+    <section id="breakdown-reports-section" class="content-section">
+      <div class="card">
+        <h2 class="card-title">📉 Отчёты по поломкам</h2>
+        
+        <div class="filters" style="margin-bottom: 20px;">
+          <div class="form-row">
+            <div class="form-group">
+              <label>С</label>
+              <input type="date" id="breakdownReportDateFrom">
+            </div>
+            <div class="form-group">
+              <label>По</label>
+              <input type="date" id="breakdownReportDateTo">
+            </div>
+            <div class="form-group">
+              <label>Участок</label>
+              <select id="breakdownReportSector">
+                <option value="">Все</option>
+                <option value="Плазма">Плазма</option>
+                <option value="Строжка">Строжка</option>
+                <option value="Зачистка">Зачистка</option>
+                <option value="Автосварка">Автосварка</option>
+                <option value="Полотер">Полотер</option>
+                <option value="Штамповка">Штамповка</option>
+                <option value="Отбортовка">Отбортовка</option>
+                <option value="Калибровка">Калибровка</option>
+                <option value="Термообработка">Термообработка</option>
+                <option value="Логистика">Логистика</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>&nbsp;</label>
+              <div style="display: flex; gap: 10px;">
+                <button class="btn btn-primary" id="generateBreakdownReports">Сформировать</button>
+                <button class="btn btn-secondary" id="resetBreakdownFilters" type="button">Сбросить</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- График простоев -->
+        <div class="report-section" style="margin-bottom: 40px;">
+          <h3>📊 Простои оборудования (в рамках 12-часовой смены)</h3>
+          <div style="height: 400px; margin: 20px 0;">
+            <canvas id="breakdownDowntimeChart"></canvas>
+          </div>
+        </div>
+        
+        <!-- Таблица статистики -->
+        <div class="report-section">
+          <h3>📄 Статистика поломок</h3>
+          <div id="breakdownStatsTable" style="margin-top: 20px;">
+            <p class="empty-state">Нажмите "Сформировать" для получения статистики</p>
           </div>
         </div>
       </div>
@@ -574,6 +716,6 @@
 
   <!-- Модальное окно редактирования будет добавлено динамически -->
 
-  <script type="module" src="js/app.js?v=80"></script>
+  <script type="module" src="js/app.js?v=98"></script>
 </body>
 </html>
