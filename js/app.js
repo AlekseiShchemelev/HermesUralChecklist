@@ -630,6 +630,14 @@ class App {
       onDelete: (id) => this.deleteRecord(id),
     });
 
+    // Растягиваем таблицу на всю высоту экрана
+    container.classList.add("fullscreen-table");
+    const table = container.querySelector(".data-table");
+    if (table) {
+      table.style.width = "100%";
+      table.style.minWidth = "100%";
+    }
+
     // Привязываем обработчики к кнопкам
     this.bindTableActions(container);
 
@@ -675,6 +683,14 @@ class App {
       onEdit: (id) => this.editRecord(id),
       onDelete: (id) => this.deleteRecord(id),
     });
+
+    // Растягиваем таблицу на всю высоту экрана
+    container.classList.add("fullscreen-table");
+    const table = container.querySelector(".data-table");
+    if (table) {
+      table.style.width = "100%";
+      table.style.minWidth = "100%";
+    }
 
     // Привязываем обработчики к кнопкам
     this.bindTableActions(container);
@@ -2506,12 +2522,68 @@ class App {
       });
     });
 
-    // Установка текущей даты в поля
+    // Установка текущей даты и времени в поля
     const today = new Date();
     const yyyy = today.getFullYear();
     const mm = String(today.getMonth() + 1).padStart(2, "0");
     const dd = String(today.getDate()).padStart(2, "0");
+    const hh = String(today.getHours()).padStart(2, "0");
+    const min = String(today.getMinutes()).padStart(2, "0");
+
     document.getElementById("breakdownDateFrom").value = `${yyyy}-${mm}-${dd}`;
+    document.getElementById("breakdownTimeFrom").value = `${hh}:${min}`;
+
+    // Функция расчета простоя
+    const calculateDowntime = () => {
+      const dateFrom = document.getElementById("breakdownDateFrom").value;
+      const timeFrom = document.getElementById("breakdownTimeFrom").value;
+      const dateTo = document.getElementById("breakdownDateTo").value;
+      const timeTo = document.getElementById("breakdownTimeTo").value;
+      const downtimeInput = document.getElementById("breakdownDowntime");
+
+      if (!dateFrom || !timeFrom) {
+        downtimeInput.value = "";
+        return;
+      }
+
+      const startDate = new Date(`${dateFrom}T${timeFrom}`);
+      let endDate;
+
+      if (dateTo && timeTo) {
+        endDate = new Date(`${dateTo}T${timeTo}`);
+      } else if (dateTo) {
+        endDate = new Date(`${dateTo}T00:00`);
+      } else {
+        // Если дата устранения не указана, используем текущее время
+        endDate = new Date();
+      }
+
+      const diffMs = endDate - startDate;
+      const diffHours = diffMs / (1000 * 60 * 60);
+
+      if (diffHours >= 0) {
+        downtimeInput.value = diffHours.toFixed(2);
+      } else {
+        downtimeInput.value = "0.00";
+      }
+    };
+
+    // Добавляем обработчики для авторасчета
+    document
+      .getElementById("breakdownDateFrom")
+      .addEventListener("change", calculateDowntime);
+    document
+      .getElementById("breakdownTimeFrom")
+      .addEventListener("change", calculateDowntime);
+    document
+      .getElementById("breakdownDateTo")
+      .addEventListener("change", calculateDowntime);
+    document
+      .getElementById("breakdownTimeTo")
+      .addEventListener("change", calculateDowntime);
+
+    // Начальный расчет
+    calculateDowntime();
 
     // Отправка формы
     form.addEventListener("submit", async (e) => {
@@ -2546,12 +2618,16 @@ class App {
     const sector = document.getElementById("breakdownSector").value;
     const equipment = document.getElementById("breakdownEquipment").value;
     const dateFrom = document.getElementById("breakdownDateFrom").value;
+    const timeFrom = document.getElementById("breakdownTimeFrom").value;
     const dateTo = document.getElementById("breakdownDateTo").value;
+    const timeTo = document.getElementById("breakdownTimeTo").value;
     const downtime = document.getElementById("breakdownDowntime").value;
     const reason = document.getElementById("breakdownReason").value;
 
-    if (!sector || !equipment || !dateFrom || !downtime || !reason) {
-      alert("Заполните обязательные поля");
+    if (!sector || !equipment || !dateFrom || !timeFrom || !reason) {
+      alert(
+        "Заполните обязательные поля (участок, оборудование, дату и время выхода, причину)",
+      );
       return;
     }
 
@@ -2560,12 +2636,18 @@ class App {
     btn.textContent = "Сохранение...";
 
     try {
+      // Форматируем дату и время для отправки
+      const dateFromFormatted =
+        dateFrom && timeFrom ? `${dateFrom} ${timeFrom}` : dateFrom;
+      const dateToFormatted =
+        dateTo && timeTo ? `${dateTo} ${timeTo}` : dateTo || "";
+
       const result = await this.storage.submitBreakdown({
         sector,
         equipment,
-        dateFrom,
-        dateTo,
-        downtime: parseFloat(downtime),
+        dateFrom: dateFromFormatted,
+        dateTo: dateToFormatted,
+        downtime: parseFloat(downtime) || 0,
         reason,
       });
 
@@ -2724,6 +2806,27 @@ class App {
         return "";
       };
 
+      // Форматируем время для input type="time" (HH:mm)
+      const formatTimeInput = (dateStr) => {
+        if (!dateStr) return "";
+
+        // Если формат "20.03.2026 14:12"
+        const match = dateStr.match(/\d{2}\.\d{2}\.\d{4}\s+(\d{2}):(\d{2})/);
+        if (match) {
+          return `${match[1]}:${match[2]}`;
+        }
+
+        // Если формат ISO с временем
+        const d = new Date(dateStr);
+        if (!isNaN(d.getTime())) {
+          const hh = String(d.getHours()).padStart(2, "0");
+          const mm = String(d.getMinutes()).padStart(2, "0");
+          return `${hh}:${mm}`;
+        }
+
+        return "";
+      };
+
       // Сначала добавляем в DOM чтобы показать загрузку
       modal.innerHTML = `
       <div class="modal-content" style="max-width: 700px; max-height: 90vh; overflow-y: auto; background: var(--bg-card); border-radius: var(--radius-lg); padding: 0; box-shadow: var(--shadow-lg); animation: modalSlideIn 0.2s ease-out;">
@@ -2805,20 +2908,34 @@ class App {
               </div>
             </div>
             
+            <!-- Дата и время выхода -->
             <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
               <div class="form-group">
                 <label style="display: block; margin-bottom: 6px; font-weight: 500; color: var(--text-secondary);">Дата выхода *</label>
                 <input type="date" id="editBreakdownDateFrom" class="form-control" value="${formatDateInput(breakdown.dateFrom)}" required style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: var(--radius-sm);">
               </div>
               <div class="form-group">
-                <label style="display: block; margin-bottom: 6px; font-weight: 500; color: var(--text-secondary);">Дата устранения</label>
-                <input type="date" id="editBreakdownDateTo" class="form-control" value="${formatDateInput(breakdown.dateTo)}" style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: var(--radius-sm);">
+                <label style="display: block; margin-bottom: 6px; font-weight: 500; color: var(--text-secondary);">Время выхода *</label>
+                <input type="time" id="editBreakdownTimeFrom" class="form-control" value="${formatTimeInput(breakdown.dateFrom)}" required style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: var(--radius-sm);">
               </div>
             </div>
             
+            <!-- Дата и время устранения -->
+            <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+              <div class="form-group">
+                <label style="display: block; margin-bottom: 6px; font-weight: 500; color: var(--text-secondary);">Дата устранения</label>
+                <input type="date" id="editBreakdownDateTo" class="form-control" value="${formatDateInput(breakdown.dateTo)}" style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: var(--radius-sm);">
+              </div>
+              <div class="form-group">
+                <label style="display: block; margin-bottom: 6px; font-weight: 500; color: var(--text-secondary);">Время устранения</label>
+                <input type="time" id="editBreakdownTimeTo" class="form-control" value="${formatTimeInput(breakdown.dateTo)}" style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: var(--radius-sm);">
+              </div>
+            </div>
+            
+            <!-- Авторасчитываемый простой -->
             <div class="form-group" style="margin-bottom: 16px;">
-              <label style="display: block; margin-bottom: 6px; font-weight: 500; color: var(--text-secondary);">Время простоя (часов) *</label>
-              <input type="number" id="editBreakdownDowntime" class="form-control" value="${breakdown.downtime}" min="0" step="0.5" required style="width: 150px; padding: 10px; border: 1px solid var(--border-color); border-radius: var(--radius-sm);">
+              <label style="display: block; margin-bottom: 6px; font-weight: 500; color: var(--text-secondary);">Время простоя (часов) <span style="color: var(--success);">(авто)</span></label>
+              <input type="number" id="editBreakdownDowntime" class="form-control" value="${breakdown.downtime}" min="0" step="0.01" readonly style="width: 150px; padding: 10px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); background: var(--bg-secondary); cursor: not-allowed;">
             </div>
             
             <div class="form-group">
@@ -2850,6 +2967,55 @@ class App {
       // Убираем индикатор загрузки
       const loadingEl = document.getElementById("breakdownLoading");
       if (loadingEl) loadingEl.style.display = "none";
+
+      // Функция расчета простоя в режиме редактирования
+      const calculateEditDowntime = () => {
+        const dateFrom = document.getElementById(
+          "editBreakdownDateFrom",
+        )?.value;
+        const timeFrom = document.getElementById(
+          "editBreakdownTimeFrom",
+        )?.value;
+        const dateTo = document.getElementById("editBreakdownDateTo")?.value;
+        const timeTo = document.getElementById("editBreakdownTimeTo")?.value;
+        const downtimeInput = document.getElementById("editBreakdownDowntime");
+
+        if (!dateFrom || !timeFrom || !downtimeInput) return;
+
+        const startDate = new Date(`${dateFrom}T${timeFrom}`);
+        let endDate;
+
+        if (dateTo && timeTo) {
+          endDate = new Date(`${dateTo}T${timeTo}`);
+        } else if (dateTo) {
+          endDate = new Date(`${dateTo}T00:00`);
+        } else {
+          endDate = new Date();
+        }
+
+        const diffMs = endDate - startDate;
+        const diffHours = diffMs / (1000 * 60 * 60);
+
+        if (diffHours >= 0) {
+          downtimeInput.value = diffHours.toFixed(2);
+        } else {
+          downtimeInput.value = "0.00";
+        }
+      };
+
+      // Добавляем обработчики для авторасчета простоя
+      document
+        .getElementById("editBreakdownDateFrom")
+        ?.addEventListener("change", calculateEditDowntime);
+      document
+        .getElementById("editBreakdownTimeFrom")
+        ?.addEventListener("change", calculateEditDowntime);
+      document
+        .getElementById("editBreakdownDateTo")
+        ?.addEventListener("change", calculateEditDowntime);
+      document
+        .getElementById("editBreakdownTimeTo")
+        ?.addEventListener("change", calculateEditDowntime);
 
       // Обработчики кнопок
       const viewMode = modal.querySelector("#breakdownViewMode");
@@ -2916,29 +3082,32 @@ class App {
         btnSave.textContent = "Сохранение...";
 
         try {
-          // Конвертируем дату из YYYY-MM-DD в DD.MM.YYYY
-          const formatDateForSave = (dateStr) => {
-            if (!dateStr) return "";
-            const match = dateStr.match(/(\d{4})-(\d{2})-(\d{2})/);
-            if (match) {
-              return `${match[3]}.${match[2]}.${match[1]}`;
-            }
-            return dateStr;
-          };
+          // Получаем значения дат и времени
+          const dateFrom = document.getElementById(
+            "editBreakdownDateFrom",
+          ).value;
+          const timeFrom = document.getElementById(
+            "editBreakdownTimeFrom",
+          ).value;
+          const dateTo = document.getElementById("editBreakdownDateTo").value;
+          const timeTo = document.getElementById("editBreakdownTimeTo").value;
+
+          // Форматируем дату и время для сохранения
+          const dateFromFormatted =
+            dateFrom && timeFrom ? `${dateFrom} ${timeFrom}` : dateFrom;
+          const dateToFormatted =
+            dateTo && timeTo ? `${dateTo} ${timeTo}` : dateTo || "";
 
           const updatedData = {
             id: breakdown.id,
             sector: document.getElementById("editBreakdownSector").value,
             equipment: document.getElementById("editBreakdownEquipment").value,
-            dateFrom: formatDateForSave(
-              document.getElementById("editBreakdownDateFrom").value,
-            ),
-            dateTo: formatDateForSave(
-              document.getElementById("editBreakdownDateTo").value,
-            ),
-            downtime: parseFloat(
-              document.getElementById("editBreakdownDowntime").value,
-            ),
+            dateFrom: dateFromFormatted,
+            dateTo: dateToFormatted,
+            downtime:
+              parseFloat(
+                document.getElementById("editBreakdownDowntime").value,
+              ) || 0,
             reason: document.getElementById("editBreakdownReason").value,
           };
 
@@ -3228,7 +3397,7 @@ class App {
           legend: { display: false },
           title: {
             display: true,
-            text: "Простои оборудования (макс. 12 часов = 1 смена)",
+            text: "Простои оборудования",
           },
           annotation: {
             annotations: {
@@ -3260,7 +3429,7 @@ class App {
   }
 
   /**
-   * Таблица статистики поломок
+   * Таблица статистики поломок (по оборудованию)
    */
   renderBreakdownStatsTable(breakdowns) {
     const container = document.getElementById("breakdownStatsTable");
@@ -3272,33 +3441,30 @@ class App {
       return;
     }
 
-    // Статистика по участкам
-    const bySector = {};
+    // Статистика по оборудованию
+    const byEquipment = {};
     breakdowns.forEach((b) => {
-      if (!bySector[b.sector]) {
-        bySector[b.sector] = { count: 0, downtime: 0 };
+      if (!byEquipment[b.equipment]) {
+        byEquipment[b.equipment] = { count: 0, downtime: 0 };
       }
-      bySector[b.sector].count++;
-      bySector[b.sector].downtime += parseFloat(b.downtime || 0);
+      byEquipment[b.equipment].count++;
+      byEquipment[b.equipment].downtime += parseFloat(b.downtime || 0);
     });
 
     const html = ['<table class="data-table"><thead><tr>'];
-    html.push("<th>Участок</th>");
+    html.push("<th>Оборудование</th>");
     html.push("<th>Кол-во поломок</th>");
     html.push("<th>Общий простой (ч)</th>");
-    html.push("<th>Средний простой (ч)</th>");
-    html.push("<th>% от 12ч смены</th>");
+    html.push("<th>Простой (смен)</th>");
     html.push("</tr></thead><tbody>");
 
-    Object.entries(bySector).forEach(([sector, stats]) => {
-      const avg = (stats.downtime / stats.count).toFixed(1);
-      const percent = ((stats.downtime / 12) * 100).toFixed(1);
+    Object.entries(byEquipment).forEach(([equipment, stats]) => {
+      const shifts = (stats.downtime / 12).toFixed(2); // Простой в сменах (12 часов)
       html.push("<tr>");
-      html.push("<td>" + escapeHtml(sector) + "</td>");
+      html.push("<td>" + escapeHtml(equipment) + "</td>");
       html.push("<td>" + stats.count + "</td>");
       html.push("<td>" + stats.downtime.toFixed(1) + "</td>");
-      html.push("<td>" + avg + "</td>");
-      html.push("<td>" + percent + "%</td>");
+      html.push("<td>" + shifts + "</td>");
       html.push("</tr>");
     });
 

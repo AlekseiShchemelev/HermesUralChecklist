@@ -111,19 +111,22 @@ function doGet(e) {
           dateFrom: params.dateFrom,
           dateTo: params.dateTo || "",
           downtime: parseFloat(params.downtime) || 0,
-          reason: decodeURIComponent(params.reason || "")
+          reason: decodeURIComponent(params.reason || ""),
         };
         const result = updateBreakdown(data);
         // Если callback есть - оборачиваем в JSONP
         if (callback) {
           const json = result.getContent();
-          return ContentService.createTextOutput(`${callback}(${json});`).setMimeType(
-            ContentService.MimeType.JAVASCRIPT,
-          );
+          return ContentService.createTextOutput(
+            `${callback}(${json});`,
+          ).setMimeType(ContentService.MimeType.JAVASCRIPT);
         }
         return result;
       } catch (err) {
-        return makeJSONP({ result: "error", message: err.toString() }, callback);
+        return makeJSONP(
+          { result: "error", message: err.toString() },
+          callback,
+        );
       }
     }
 
