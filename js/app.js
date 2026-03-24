@@ -3016,6 +3016,9 @@ class App {
       document
         .getElementById("editBreakdownTimeTo")
         ?.addEventListener("change", calculateEditDowntime);
+      
+      // Начальный расчет простоя (если данные уже есть)
+      setTimeout(calculateEditDowntime, 500);
 
       // Обработчики кнопок
       const viewMode = modal.querySelector("#breakdownViewMode");
@@ -3057,6 +3060,9 @@ class App {
         btnDelete.style.display = "none";
         btnSave.style.display = "inline-block";
         btnCancel.style.display = "inline-block";
+        
+        // Начальный расчет простоя при открытии редактирования
+        setTimeout(calculateEditDowntime, 100);
       });
 
       // Отмена редактирования
